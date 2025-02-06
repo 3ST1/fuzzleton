@@ -1,0 +1,125 @@
+import {
+  Scene,
+  Vector3,
+  MeshBuilder,
+  PhysicsAggregate,
+  PhysicsShapeType,
+  Mesh,
+  StandardMaterial,
+} from "@babylonjs/core";
+import { Environment as GameEnvironment } from "../Environnement";
+import { addPhysicsAggregate } from "../App";
+import { GameObject } from "./GameObject";
+
+class Stairs extends GameObject {
+  wall: Mesh;
+  // startPosition: Vector3; // defined in GameObject
+  endPosition: Vector3;
+  nbSteps: number;
+  stepWidth: number;
+  stepHeight: number;
+  stepDepth: number;
+  material: any;
+  // name: string; // defined in GameObject
+  // scene: Scene; // defined in GameObject
+  // environment: GameEnvironment; // defined in GameObject
+  steps: [Mesh, PhysicsAggregate][];
+  constructor(
+    scene: Scene,
+    environment: GameEnvironment,
+    name: string = "stairs",
+    startPosition: Vector3 = new Vector3(0, 0, 0),
+    nbSteps: number = 10,
+    stepWidth: number = 4,
+    stepHeight: number = 0.5,
+    stepDepth: number = 2,
+    material: any = new StandardMaterial("stairsStandardMaterial", scene)
+  ) {
+    super(scene, environment, name, startPosition);
+    this.name = name;
+    this.scene = scene;
+    this.environment = environment;
+    this.startPosition = startPosition;
+    this.endPosition = new Vector3(
+      startPosition.x,
+      startPosition.y + nbSteps * stepHeight,
+      startPosition.z + nbSteps * stepDepth
+    );
+    this.nbSteps = nbSteps;
+    this.stepWidth = stepWidth;
+    this.stepHeight = stepHeight;
+    this.stepDepth = stepDepth;
+    this.material = material;
+
+    this._createStairs(
+      scene,
+      environment,
+      this.name,
+      this.startPosition,
+      this.nbSteps,
+      this.stepWidth,
+      this.stepHeight,
+      this.stepDepth,
+      this.material
+    );
+  }
+
+  private _createStairs(
+    scene: Scene,
+    environment: GameEnvironment,
+    stairName: string = "stairs",
+    startPosition: Vector3 = new Vector3(0, 0, 0),
+    nbSteps: number = 10,
+    stepWidth: number = 4,
+    stepHeight: number = 0.5,
+    stepDepth: number = 2,
+    material: any = new StandardMaterial("stairsStandardMaterial", scene)
+  ): Mesh[] {
+    this.steps = [];
+
+    for (let i = 0; i < nbSteps; i++) {
+      // Calculate the position of each step based on the starting position
+      const stepPosition = new Vector3(
+        startPosition.x,
+        startPosition.y + i * stepHeight,
+        startPosition.z + i * stepDepth
+      );
+
+      const step = MeshBuilder.CreateBox(
+        stairName + "-step_" + i,
+        { width: stepWidth, height: stepHeight, depth: stepDepth },
+        scene
+      );
+      step.position = stepPosition;
+      step.receiveShadows = true;
+      environment.addShadowsToMesh(step);
+
+      const physicsAggregate = addPhysicsAggregate(
+        scene,
+        step,
+        PhysicsShapeType.BOX,
+        0,
+        2,
+        0
+      );
+      // Set material for each step
+      step.material = material;
+      // Track the step for later (dispose, etc)
+      this.steps.push([step, physicsAggregate]);
+    }
+
+    // return the steps meshes
+    return this.steps.map((step) => step[0]);
+  }
+
+  public dispose() {
+    // (physics aggregate must be disposed first manually)
+    // see Level.disposeLevel (stair is considered as an obj there)
+    this.steps.forEach((step) => {
+      step[1].dispose();
+      this.environment.removeShadowsFromMesh(step[0]);
+      step[0].dispose();
+    });
+  }
+}
+export { Stairs as Stair };
