@@ -13,13 +13,12 @@ import {
   StackPanel,
   Button,
   TextBlock,
+  Control,
 } from "@babylonjs/gui";
-import { AdvancedDynamicTexture, Button, Control } from "@babylonjs/gui";
 import PlayerController from "./thirdPersonController";
-import { Level } from "./Level";
+import { Level } from "./level/Level";
 import { hideLoading } from ".";
 
-// Define game states
 // enum State {
 //   START = 0,
 //   GAME = 1,
@@ -112,12 +111,9 @@ class App {
     // Create the player
     const char = new PlayerController(scene, environment, thridPers);
 
-    this.createButton(environment, char);
-
-    // char.setPlayerToSleep();
-    console.log("Will create btn ");
-
     const level = new Level(scene, environment);
+
+    this.createButton(environment, char, level);
     await level.initLevel();
 
     this.canvas.style.opacity = "1";
@@ -154,7 +150,7 @@ class App {
     return scene;
   }
 
-  createButton(env: GameEnvironment, char: PlayerController) {
+  createButton(env: GameEnvironment, char: PlayerController, level: Level) {
     // console.log("CREATING BTN ");
     // Create an advanced dynamic texture (UI Layer)
     const advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI("UI");
@@ -174,7 +170,7 @@ class App {
         window.removeEventListener("keydown", pKeyListener);
         button.isVisible = false;
         char.wakeUpPlayer();
-        env.generateRandomObjects(100);
+        level.generateRandomObjects(100);
       }
     };
     window.addEventListener("keydown", pKeyListener);
@@ -191,7 +187,7 @@ class App {
 
       if (char) {
         char.wakeUpPlayer();
-        env.generateRandomObjects(100);
+        level.generateRandomObjects(100);
       }
     });
 
@@ -222,7 +218,7 @@ class App {
 }
 
 function getLinearDamping(mass: number, friction: number): number {
-  return Math.min(1, friction / 10 + mass / 100000); // Adjust as needed
+  return Math.min(1, friction / 10 + mass / 100000); // TODO: improve this and add it back to addPhysicsAggregate
 }
 
 export function addPhysicsAggregate(

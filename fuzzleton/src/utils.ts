@@ -1,13 +1,13 @@
-import { Color3, PBRMaterial, StandardMaterial } from "@babylonjs/core";
+import { Color3, PBRMaterial, Scene, StandardMaterial } from "@babylonjs/core";
 
 export function getRandomColor(): [Color3, string] {
   const num = Math.floor(Math.random() * 16777215).toString(16);
   return [Color3.FromHexString("#" + num), num];
 }
 
-export function getRandomColorMaterial() {
-  const [randomColor, num] = this.getRandomColor();
-  const material = new StandardMaterial("material_" + num, this.scene);
+export function getRandomColorMaterial(scene: Scene): StandardMaterial {
+  const [randomColor, num] = getRandomColor();
+  const material = new StandardMaterial("material_" + num, scene);
   material.diffuseColor = randomColor;
   return material;
 }

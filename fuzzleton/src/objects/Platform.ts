@@ -49,7 +49,7 @@ class Platform extends GameObject {
       scene
     )
   ) {
-    super(scene, environment, name, startPos);
+    super(scene, environment, name, startPos, endPos);
     this.scene = scene;
     this.environment = environment;
     this.name = name;
@@ -58,7 +58,7 @@ class Platform extends GameObject {
     this.depth = depth;
     this.position = startPos;
     this.moving = moving;
-    this.endPos = endPos;
+    // this.endPosition = endPos;
     this.speed = speed;
     this.material = material;
 

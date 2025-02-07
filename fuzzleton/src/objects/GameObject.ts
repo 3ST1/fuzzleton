@@ -18,17 +18,24 @@ class GameObject {
   startPosition: Vector3;
   physicsAggregate: PhysicsAggregate;
   name: string;
+  endPosition: Vector3;
   constructor(
     scene: Scene,
     environment: GameEnvironment,
     name: string = "GameObject",
     startPos: Vector3 = null,
+    endPos: Vector3 = null,
     createRandomObj: boolean = false
   ) {
     this.scene = scene;
     this.environment = environment;
     this.name = name;
     this.startPosition = startPos;
+    if (startPos !== null && endPos === null) {
+      this.endPosition = startPos;
+    } else {
+      this.endPosition = endPos;
+    }
     if (createRandomObj) {
       this._createRandomObjects(scene);
     }
@@ -106,8 +113,16 @@ class GameObject {
     );
 
     // add shadow
-    //   this.environment.addShadowsToMesh(obj);
+    // this.environment.addShadowsToMesh(this.obj); // SHADOW BUGS
     //   this.environment.bisShadowGenerators.addShadowCaster(obj); // TO RESOLVE WHY SHADOWS ARE LAGGING
+  }
+
+  public getStartPosition() {
+    return this.startPosition;
+  }
+
+  public getEndPosition() {
+    return this.endPosition;
   }
 
   public dispose() {

@@ -153,7 +153,10 @@ export class Environment {
       new Vector3(0, 1, 0),
       this.scene
     );
-    this.hemiLight.intensity = 0.3;
+    this.hemiLight.intensity = 0.5;
+    this.hemiLight.diffuse = new Color3(0.7, 0.5, 0.5);
+    this.hemiLight.specular = new Color3(0.7, 0.5, 0.3);
+    this.hemiLight.groundColor = new Color3(0.6, 0.5, 0.5);
 
     // Directional Light 1
     var light = new DirectionalLight(
@@ -243,17 +246,18 @@ export class Environment {
 
     // Add fog for a dreamy atmosphere
     this.scene.fogMode = Scene.FOGMODE_EXP;
-    this.scene.fogDensity = 0.0001; // Adjusted for subtle depth
+    this.scene.fogDensity = 0.0009;
     this.scene.fogColor = new Color3(0.85, 0.75, 0.65);
+    // this.scene.fogMode = Scene.FOGMODE_EXP;
   }
 
   public addShadowsToMesh(mesh: Mesh): void {
     // console.log("Adding shadows to mesh: ", mesh);
-    mesh.receiveShadows = true;
     // if (this.shadowGenerators.length > 0)
     //   this.shadowGenerators.forEach((sg) => {
     //     sg.addShadowCaster(mesh);
     //   });
+    mesh.receiveShadows = true;
     this.shadowGenerator.addShadowCaster(mesh);
   }
 
@@ -424,50 +428,40 @@ export class Environment {
 
   private advancedTexture = GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
 
-  private fpsTextBlock = new GUI.TextBlock();
-  private tipsTextBlock = new GUI.TextBlock();
+  private fpsText = new GUI.TextBlock();
+  private infosText = new GUI.TextBlock();
 
+  // FPS AND OTHER INFOS
   private setupInfosGUI(): void {
-    this.fpsTextBlock.text = "";
-    this.fpsTextBlock.fontSize = 13;
-    this.fpsTextBlock.color = "white";
-    this.fpsTextBlock.paddingLeft = 10;
-    this.fpsTextBlock.paddingBottom = 10;
-    this.fpsTextBlock.textHorizontalAlignment =
+    this.fpsText.text = "";
+    this.fpsText.fontSize = 13;
+    this.fpsText.color = "white";
+    this.fpsText.paddingLeft = 10;
+    this.fpsText.paddingBottom = 10;
+    this.fpsText.textHorizontalAlignment =
       GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    this.fpsTextBlock.textVerticalAlignment =
-      GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
-    this.advancedTexture.addControl(this.fpsTextBlock);
+    this.fpsText.textVerticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+    this.advancedTexture.addControl(this.fpsText);
 
     const tipsBlock = new GUI.TextBlock();
-    this.tipsTextBlock.text = "Press esc to cancel mouse lock";
-    this.tipsTextBlock.fontSize = 13;
-    this.tipsTextBlock.color = "white";
-    this.tipsTextBlock.paddingLeft = 10;
-    this.tipsTextBlock.paddingBottom = 30;
-    this.tipsTextBlock.textHorizontalAlignment =
+    this.infosText.text = "Press esc to cancel mouse lock";
+    this.infosText.fontSize = 13;
+    this.infosText.color = "white";
+    this.infosText.paddingLeft = 10;
+    this.infosText.paddingBottom = 30;
+    this.infosText.textHorizontalAlignment =
       GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    this.tipsTextBlock.textVerticalAlignment =
+    this.infosText.textVerticalAlignment =
       GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
     this.advancedTexture.addControl(tipsBlock);
   }
 
   public updateFps(fps: number) {
-    this.fpsTextBlock.text = "FPS: " + fps.toFixed(0);
+    this.fpsText.text = "FPS: " + fps.toFixed(0);
   }
 
   public updateTipsText(text: string) {
-    this.tipsTextBlock.text = text;
-  }
-
-  public getObjectsToAddPhysics(): MyEnvObjsToAddPhysics[] {
-    return this.objectsToAddPhysics;
-  }
-
-  public generateRandomObjects(nb: number): void {
-    for (let i = 0; i < nb; i++) {
-      new GameObject(this.scene, this, "randomObject" + i, null, true);
-    }
+    this.infosText.text = text;
   }
 
   public setupGameEnvironment(thirdPers: boolean = true): void {

@@ -16,11 +16,7 @@ import { addPhysicsAggregate } from "../App";
 import { GameObject } from "./GameObject";
 
 class Slope extends GameObject {
-  metadata: { physicsAggregate: PhysicsAggregate };
-
-  // scene: Scene; // defined in GameObject
-  // environment: GameEnvironment; // defined in GameObject
-  // name: string; // defined in GameObject
+  // metadata: { physicsAggregate: PhysicsAggregate };
   width: number;
   height: number;
   depth: number;
@@ -28,7 +24,8 @@ class Slope extends GameObject {
   position: Vector3;
   material: any;
   slope: Mesh;
-  // physicsAggregate: any; // defined in GameObject
+  // startPosition: Vector3; // defined in GameObject
+  // endPosition: Vector3; // defined in GameObject
 
   constructor(
     scene: Scene,
@@ -52,55 +49,52 @@ class Slope extends GameObject {
     this.position = slopePosition;
     this.material = material;
 
-    this._createSlope(
-      scene,
-      environment,
-      name,
-      slopeWidth,
-      slopeHeight,
-      slopeDepth,
-      slopeRotation,
-      slopePosition,
-      material
-    );
+    this.slope = this._createSlope();
+    this._calculateSlopePositions();
   }
 
-  private _createSlope(
-    scene: Scene,
-    environment: GameEnvironment,
-    name: string = "slope",
-    width: number = 4,
-    height: number = 0.1,
-    depth: number = 12,
-    rotation: number = -35,
-    position: Vector3 = new Vector3(0, 0, 0),
-    material: any = new StandardMaterial("slopeStandardMaterial", scene)
-  ): Mesh {
-    this.slope = MeshBuilder.CreateBox(
-      name,
-      { width: width, height: height, depth: depth },
-      scene
+  private _createSlope(): Mesh {
+    const slope = MeshBuilder.CreateBox(
+      this.name,
+      { width: this.width, height: this.height, depth: this.depth },
+      this.scene
     );
-    this.slope.receiveShadows = true;
-    this.slope.position = position;
-    this.slope.rotation.x = Tools.ToRadians(rotation);
+    slope.receiveShadows = true;
+    slope.position = this.position;
+    slope.rotation.x = Tools.ToRadians(this.rotation);
 
-    // Add shadows to the slope
-    environment.addShadowsToMesh(this.slope);
-
+    this.environment.addShadowsToMesh(slope);
     this.physicsAggregate = addPhysicsAggregate(
-      scene,
-      this.slope,
+      this.scene,
+      slope,
       PhysicsShapeType.BOX,
       0,
       2,
       0
     );
+    slope.material = this.material;
 
-    // Set material
-    this.slope.material = material;
+    return slope;
+  }
 
-    return this.slope;
+  private _calculateSlopePositions() {
+    const rotationRadians = Tools.ToRadians(this.rotation);
+    const halfDepth = this.depth / 2;
+
+    const offsetX = Math.sin(rotationRadians) * halfDepth;
+    const offsetY = Math.cos(rotationRadians) * halfDepth;
+
+    this.startPosition = new Vector3(
+      this.position.x - offsetX,
+      this.position.y + offsetY,
+      this.position.z - halfDepth
+    );
+
+    this.endPosition = new Vector3(
+      this.position.x + offsetX,
+      this.position.y - offsetY,
+      this.position.z + halfDepth
+    );
   }
 
   public dispose() {
@@ -109,4 +103,5 @@ class Slope extends GameObject {
     this.slope.dispose();
   }
 }
+
 export { Slope };

@@ -6,6 +6,7 @@ import {
   PhysicsShapeType,
   Mesh,
   StandardMaterial,
+  Tools,
 } from "@babylonjs/core";
 import { Environment as GameEnvironment } from "../Environnement";
 import { addPhysicsAggregate } from "../App";
@@ -14,7 +15,7 @@ import { GameObject } from "./GameObject";
 class Stairs extends GameObject {
   wall: Mesh;
   // startPosition: Vector3; // defined in GameObject
-  endPosition: Vector3;
+  // endPosition: Vector3; // defined in GameObject
   nbSteps: number;
   stepWidth: number;
   stepHeight: number;
@@ -24,11 +25,13 @@ class Stairs extends GameObject {
   // scene: Scene; // defined in GameObject
   // environment: GameEnvironment; // defined in GameObject
   steps: [Mesh, PhysicsAggregate][];
+  rotation: number;
   constructor(
     scene: Scene,
     environment: GameEnvironment,
     name: string = "stairs",
     startPosition: Vector3 = new Vector3(0, 0, 0),
+    rotation: number = 0,
     nbSteps: number = 10,
     stepWidth: number = 4,
     stepHeight: number = 0.5,
@@ -40,6 +43,7 @@ class Stairs extends GameObject {
     this.scene = scene;
     this.environment = environment;
     this.startPosition = startPosition;
+    this.rotation = rotation;
     this.endPosition = new Vector3(
       startPosition.x,
       startPosition.y + nbSteps * stepHeight,
@@ -56,6 +60,7 @@ class Stairs extends GameObject {
       environment,
       this.name,
       this.startPosition,
+      this.rotation,
       this.nbSteps,
       this.stepWidth,
       this.stepHeight,
@@ -69,6 +74,7 @@ class Stairs extends GameObject {
     environment: GameEnvironment,
     stairName: string = "stairs",
     startPosition: Vector3 = new Vector3(0, 0, 0),
+    rotation: number = 0,
     nbSteps: number = 10,
     stepWidth: number = 4,
     stepHeight: number = 0.5,
@@ -91,6 +97,10 @@ class Stairs extends GameObject {
         scene
       );
       step.position = stepPosition;
+
+      // rotate the step
+      // step.rotation.y = Tools.ToRadians(rotation);
+
       step.receiveShadows = true;
       environment.addShadowsToMesh(step);
 
@@ -122,4 +132,4 @@ class Stairs extends GameObject {
     });
   }
 }
-export { Stairs as Stair };
+export { Stairs };
