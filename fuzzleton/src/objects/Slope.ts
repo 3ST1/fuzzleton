@@ -24,6 +24,7 @@ class Slope extends GameObject {
   position: Vector3;
   material: any;
   slope: Mesh;
+  shadows: boolean;
   // startPosition: Vector3; // defined in GameObject
   // endPosition: Vector3; // defined in GameObject
 
@@ -36,7 +37,8 @@ class Slope extends GameObject {
     slopeDepth: number = 12,
     slopeRotation: number = -35,
     slopePosition: Vector3 = new Vector3(0, 0, 0),
-    material: any = new StandardMaterial("slopeStandardMaterial", scene)
+    material: any = new StandardMaterial("slopeStandardMaterial", scene),
+    shadows: boolean = true
   ) {
     super(scene, environment, name, slopePosition);
     this.scene = scene;
@@ -48,6 +50,7 @@ class Slope extends GameObject {
     this.rotation = slopeRotation;
     this.position = slopePosition;
     this.material = material;
+    this.shadows = shadows;
 
     this.slope = this._createSlope();
     this._calculateSlopePositions();
@@ -63,7 +66,7 @@ class Slope extends GameObject {
     slope.position = this.position;
     slope.rotation.x = Tools.ToRadians(this.rotation);
 
-    this.environment.addShadowsToMesh(slope);
+    if (this.shadows) this.environment.addShadowsToMesh(slope);
     this.physicsAggregate = addPhysicsAggregate(
       this.scene,
       slope,

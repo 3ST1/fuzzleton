@@ -64,7 +64,8 @@ class LevelGenerator {
       stepWidth,
       stepHeight,
       stepDepth,
-      getRandomColorMaterial(this.scene)
+      getRandomColorMaterial(this.scene),
+      false
     );
 
     // Add the stairs to the level objects
@@ -94,7 +95,8 @@ class LevelGenerator {
       depth,
       rotation,
       startPos,
-      getRandomColorMaterial(this.scene)
+      getRandomColorMaterial(this.scene),
+      false
     );
 
     // Add the slope to the level objects
@@ -140,7 +142,8 @@ class LevelGenerator {
       startPos,
       endPos,
       speed,
-      getRandomColorMaterial(this.scene)
+      getRandomColorMaterial(this.scene),
+      false
     );
 
     // Add the platform to the level objects

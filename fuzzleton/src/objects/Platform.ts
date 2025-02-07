@@ -32,6 +32,7 @@ class Platform extends GameObject {
   moving: boolean;
   endPos: Vector3;
   speed: number;
+  shadows: boolean;
 
   constructor(
     scene: Scene,
@@ -47,7 +48,8 @@ class Platform extends GameObject {
     material: any = new StandardMaterial(
       "elevatorPlatformStandardMaterial",
       scene
-    )
+    ),
+    shadows: boolean = true
   ) {
     super(scene, environment, name, startPos, endPos);
     this.scene = scene;
@@ -61,6 +63,7 @@ class Platform extends GameObject {
     // this.endPosition = endPos;
     this.speed = speed;
     this.material = material;
+    this.shadows = shadows;
 
     this._createPlatform(
       scene,
@@ -73,7 +76,8 @@ class Platform extends GameObject {
       startPos,
       endPos,
       speed,
-      material
+      material,
+      shadows
     );
   }
 
@@ -91,7 +95,8 @@ class Platform extends GameObject {
     material: any = new StandardMaterial(
       "elevatorPlatformStandardMaterial",
       scene
-    )
+    ),
+    shadows: boolean = true
   ) {
     this.platform = MeshBuilder.CreateBox(
       name,
@@ -100,7 +105,7 @@ class Platform extends GameObject {
     );
     this.platform.receiveShadows = true;
     this.platform.position = startPos.clone();
-    environment.addShadowsToMesh(this.platform);
+    if (shadows) environment.addShadowsToMesh(this.platform);
     this.platform.material = material;
 
     this.physicsAggregate = addPhysicsAggregate(

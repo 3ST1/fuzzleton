@@ -26,6 +26,7 @@ class Stairs extends GameObject {
   // environment: GameEnvironment; // defined in GameObject
   steps: [Mesh, PhysicsAggregate][];
   rotation: number;
+  shadows: boolean;
   constructor(
     scene: Scene,
     environment: GameEnvironment,
@@ -36,7 +37,8 @@ class Stairs extends GameObject {
     stepWidth: number = 4,
     stepHeight: number = 0.5,
     stepDepth: number = 2,
-    material: any = new StandardMaterial("stairsStandardMaterial", scene)
+    material: any = new StandardMaterial("stairsStandardMaterial", scene),
+    shadows: boolean = true
   ) {
     super(scene, environment, name, startPosition);
     this.name = name;
@@ -54,6 +56,7 @@ class Stairs extends GameObject {
     this.stepHeight = stepHeight;
     this.stepDepth = stepDepth;
     this.material = material;
+    this.shadows = shadows;
 
     this._createStairs(
       scene,
@@ -65,7 +68,8 @@ class Stairs extends GameObject {
       this.stepWidth,
       this.stepHeight,
       this.stepDepth,
-      this.material
+      this.material,
+      this.shadows
     );
   }
 
@@ -79,7 +83,8 @@ class Stairs extends GameObject {
     stepWidth: number = 4,
     stepHeight: number = 0.5,
     stepDepth: number = 2,
-    material: any = new StandardMaterial("stairsStandardMaterial", scene)
+    material: any = new StandardMaterial("stairsStandardMaterial", scene),
+    shadows: boolean = true
   ): Mesh[] {
     this.steps = [];
 
@@ -102,7 +107,7 @@ class Stairs extends GameObject {
       // step.rotation.y = Tools.ToRadians(rotation);
 
       step.receiveShadows = true;
-      environment.addShadowsToMesh(step);
+      if (shadows) environment.addShadowsToMesh(step);
 
       const physicsAggregate = addPhysicsAggregate(
         scene,
