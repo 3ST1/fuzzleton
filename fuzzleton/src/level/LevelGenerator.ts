@@ -50,7 +50,7 @@ class LevelGenerator {
     const nbSteps = Math.floor(Math.random() * 20 + 5);
 
     // Step width, height and depth
-    const stepWidth = Math.random() * 4 + 1; // between 1 and 5
+    const stepWidth = Math.random() * 4 + 2; // between 2 and 6
     const stepHeight = Math.random() * 0.25 + 0.25; // between 0.25 and 0.5
     const stepDepth = Math.random() * 4 + 1; // between 1 and 5
 
@@ -80,11 +80,13 @@ class LevelGenerator {
     const startPos = this.getNewRandomPosition();
 
     // Random width, height, depth and rotation
-    const width = Math.random() * 4 + 1; // between 1 and 5
+    const width = Math.random() * 4 + 2; // between 2 and 6
     const height = Math.random() * 0.9 + 0.1; // between 0.1 and 1
     const depth = Math.random() * 9 + 1; // between 1 and 10
-    // between -135 and 135 degrees with a higher probability of being close to 0
-    const rotation = Math.random() * 270 - 135;
+    // between -135 and 135 degrees
+    // const rotation = Math.random() * 270 - 135;
+    // between -60 and 60 degrees
+    const rotation = Math.random() * 120 - 60;
 
     const slope = new Slope(
       this.scene,

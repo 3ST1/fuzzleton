@@ -40,7 +40,7 @@ class PlayerController {
   };
 
   // to climb a step in front of the player
-  private stepRay!: BABYLON.Ray;
+  // private stepRay!: BABYLON.Ray;
   // private onStepRaycast = new BABYLON.PhysicsRaycastResult();
   stepRays: [BABYLON.Ray, BABYLON.RayHelper, BABYLON.PhysicsRaycastResult][] =
     [];
@@ -313,11 +313,11 @@ class PlayerController {
       this.player,
       new BABYLON.Vector3(0, -1, 0),
       new BABYLON.Vector3(0, -this.hitBoxHeight / 2 + 0.5, 0),
-      1.2
+      1
     );
 
     // show the ray
-    // floorRayHelper.show(this.scene, new BABYLON.Color3(0, 1, 0));
+    floorRayHelper.show(this.scene, new BABYLON.Color3(0, 1, 0));
     this.floorRayHelper = floorRayHelper;
   }
 
@@ -353,6 +353,7 @@ class PlayerController {
         BABYLON.ActionManager.OnKeyDownTrigger,
         (evt) => {
           this.inputMap[evt.sourceEvent.code] = true;
+          // console.log("key down", evt.sourceEvent.code);
         }
       )
     );
@@ -361,6 +362,7 @@ class PlayerController {
         BABYLON.ActionManager.OnKeyUpTrigger,
         (evt) => {
           this.inputMap[evt.sourceEvent.code] = false;
+          // console.log("key up", evt.sourceEvent.code);
           this.inputKeyUp();
         }
       )
@@ -370,6 +372,7 @@ class PlayerController {
   private inputKeyUp() {
     if (this.isInSleep || this.isWakingUp) return;
     // if none of the movement keys are pressed
+    // console.log("inputKeyUp ", this.inputMap);
     if (
       !this.inputMap[this.playerKeys.up] &&
       !this.inputMap[this.playerKeys.down] &&
@@ -410,6 +413,8 @@ class PlayerController {
         // this.speed = 1;
         this.velocity.y = -GRAVITY; // apply gravity
       }
+      this.velocity.x = 0;
+      this.velocity.z = 0;
     }
   }
 
@@ -473,7 +478,7 @@ class PlayerController {
       event.type === BABYLON.PhysicsEventType.COLLISION_STARTED && // collision started
       this.inAirState.hasTask && // player is jumping
       (event?.point?._y || event?.point?.y || 0) >
-        this.player.position.y + this.hitBoxHeight / 2.3 // collision point is above the player (we should do :2 but /2.3 so we take a little margin precaution to be sure)
+        this.player.position.y + this.hitBoxHeight / 2.4 // collision point is above the player (we should do /2 but /2.3 so we take a little margin precaution to be sure)
     ) {
       console.log("hit the head");
       // end jump since landed or hit something
@@ -504,6 +509,7 @@ class PlayerController {
     if (
       this.onStepState.task && // supposed near a step
       !this.inAirState.jump && // not jumping
+      !this.inAirState.fall && // not falling
       this.player.position.y - this.hitBoxHeight / 2 <
         this.onStepState.height &&
       this.isMoving
@@ -516,7 +522,9 @@ class PlayerController {
       this.velocity.y && // moving upward
       this.onStepState.task && // on the step
       !(this.checkStepCollision().length > 0) && // no step collision detected from the raycast
-      this.player.position.y - this.hitBoxHeight / 2 >= this.onStepState.height // passed the step
+      this.player.position.y - this.hitBoxHeight / 2 >=
+        this.onStepState.height && // passed the step
+      !this.inAirState.jump // Not already jumping (to avoid conflict with jump new adjustment)
     ) {
       this.velocity.y = -GRAVITY;
       this.onStepState.task = false; // no longer on a step
@@ -528,6 +536,10 @@ class PlayerController {
       !this.inAirState.hasTask && // no jump task yet
       this.onGroundRaycast.hasHit // if foot raycast detects that the player is on a ground
     ) {
+      console.log(
+        "player is jumping but not off the ground yet : starting jump by applying upward force"
+      );
+      console.log(this.inAirState);
       this.inAirState.hasTask = true; // flag started to jump
       // this.inAirState.startedAtTime = Date.now(); // record the time the jump started
       this.velocity.y = GRAVITY; // Apply upward force
@@ -540,6 +552,7 @@ class PlayerController {
         this.inAirState.startHeight + this.inAirState.limit && // if player has exceeded jump height limit
       this.inAirState.jump // player still jumping
     ) {
+      console.log("jump limit reache => start falling");
       this.inAirState.jump = false; // end the jump
       this.inAirState.fall = true; // mark as falling
       this.velocity.y = -GRAVITY; // Apply gravity to fall
@@ -678,6 +691,12 @@ class PlayerController {
         this.onStepState.task = true;
         this.onStepState.height = hitStepRays[0][2].hitPointWorld.y; // normally there should only be one (else we still take the first one)
       }
+    } else {
+      // If no movement keys are pressed, stop the player
+      this.isMoving = false;
+      this.velocity.x = 0;
+      this.velocity.z = 0;
+      this.sounds.walking.pause();
     }
 
     // Handle jumping when the Space key is pressed
@@ -685,16 +704,17 @@ class PlayerController {
       this.inputMap[this.playerKeys.jumping] &&
       !this.inAirState.jump && // not already jumping
       !this.inAirState.hasTask && // no jump task
+      // !this.inAirState.hasTask // no jump task
       this.onGroundRaycast.hasHit // on the ground
     ) {
       console.log("jump");
       this.inAirState.jump = true;
-      this.inAirState.startHeight = this.player.position.y + 0; // record the height from which the jump starts (for limit)
-      // this.onAnimWeight(AnimationKey.Jumping); // Start the jump animation
-      this.onAnimWeight(AnimationKey.Falling); // Start the jump animation
+      this.inAirState.startHeight = this.player.position.y; // record the height from which the jump starts (for limit)
+      this.velocity.y = GRAVITY; // Apply upward force
+      this.onAnimWeight(AnimationKey.Falling); // Start the jump animation (to change to Jumping we will se but for the moment the anim is not right )
     }
 
-    // Handle end of falling when the player hit the ground
+    // Handle end of falling when the player hits the ground
     if (
       this.onGroundRaycast.hasHit &&
       this.inAirState.fall &&
@@ -702,6 +722,8 @@ class PlayerController {
     ) {
       console.log("just landed");
       this.inAirState.fall = false;
+      this.inAirState.hasTask = false; // Reset jump task
+      this.velocity.y = -GRAVITY; // Apply gravity
       if (this.isMoving) {
         this.onAnimWeight(AnimationKey.Running);
       } else {
@@ -711,16 +733,14 @@ class PlayerController {
 
     // Handle the state after releasing the space key
     if (
-      this.inputMap[this.playerKeys.jump] !== undefined &&
-      !this.inputMap[this.playerKeys.jump] && // Space key is released
-      this.onGroundRaycast.hasHit && //  player on the ground
+      this.inputMap[this.playerKeys.jumping] !== undefined &&
+      !this.inputMap[this.playerKeys.jumping] && // Space key is released
+      this.onGroundRaycast.hasHit && // player on the ground
       this.inAirState.hasTask // jump task active
     ) {
       console.log("space key released & not in air anymore");
       this.inAirState.hasTask = false; // clear the jump task
-      // this.inAirState.startedAtTime = null; // reset the jump start time
-      // apply gravity
-      this.velocity.y = -GRAVITY;
+      this.velocity.y = -GRAVITY; // Apply gravity
     }
 
     // if the player is not jumping and is falling (no ground detected)
@@ -730,7 +750,7 @@ class PlayerController {
       this.onAnimWeight(AnimationKey.Falling);
     }
 
-    // ndle landing from falling to idle or running
+    // Handle landing from falling to idle or running
     if (
       !this.inAirState.jump &&
       !this.inAirState.hasTask &&

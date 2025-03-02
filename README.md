@@ -74,7 +74,7 @@ The game will draw inspiration from various games, aiming to combine elements fr
 - [*Human Fall Flat*](https://store.steampowered.com/app/477160/Human_Fall_Flat/)
 - [*Gang Beasts*](https://gangbeasts.game/)
 - [*Bed Wars*](https://www.minecraft.net/fr-ca/marketplace/pdp?id=e5e0b70b-849c-4f99-a5fb-c220f788dd3e)
-- [*Only Up*](https://onlyup-game.io/)
+- [*Only Up*](https://store.steampowered.com/app/2842590/Only_Up/)
 - [*Kirby*](https://kirby.nintendo.com/)
 
 ---

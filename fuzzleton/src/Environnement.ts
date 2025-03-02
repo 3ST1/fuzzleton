@@ -80,14 +80,14 @@ export class Environment {
         "arcCamera13dpers",
         0,
         0,
-        7,
+        12,
         undefined,
         this.scene
       );
-      this.camera.setPosition(new Vector3(0, 5, 3));
+      this.camera.setPosition(new Vector3(0, 12, 3));
       // zoom in on the player
-      this.camera.radius = 7;
-      this.camera.lowerRadiusLimit = 3;
+      this.camera.radius = 12;
+      this.camera.lowerRadiusLimit = 10;
       this.camera.upperRadiusLimit = 55;
 
       // limit camera to certain angles to avoid seeing through the ground
@@ -456,6 +456,10 @@ export class Environment {
     this.advancedTexture.addControl(tipsBlock);
   }
 
+  private setupDebugGUI(): void {
+    // debug info menu that is shown when this.debug is true
+  }
+
   public updateFps(fps: number) {
     this.fpsText.text = "FPS: " + fps.toFixed(0);
   }
@@ -472,6 +476,7 @@ export class Environment {
     this._setupPlayerCamera(this.canvas, thirdPers);
     this._initSphere();
     this.setupInfosGUI();
+    this.setupDebugGUI();
 
     console.log("Environment Loaded!");
   }
