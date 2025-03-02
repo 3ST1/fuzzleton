@@ -18,14 +18,20 @@ import App from "./app";
 //   loadingText.innerText = `Loading${dots}`;
 // }, 500);
 
-// Create the canvas HTML element and attach it to the webpage
-const canvas = document.createElement("canvas");
-canvas.id = "gameCanvas";
-document.body.appendChild(canvas);
+// start when button #startButton is clicked
+document.querySelector("#startButton").addEventListener("click", () => {
+  // hide button
+  document.querySelector("#startButton").remove();
 
-new App("gameCanvas");
+  // Create the canvas HTML element and attach it to the webpage
+  const canvas = document.createElement("canvas");
+  canvas.id = "gameCanvas";
+  document.body.appendChild(canvas);
 
-export function hideLoading() {
-  const l = document.querySelector("#loading") as HTMLElement;
-  l.remove();
-}
+  new App("gameCanvas");
+});
+
+// export function hideLoading() {
+//   const l = document.querySelector("#loading") as HTMLElement;
+//   l.remove();
+// }
