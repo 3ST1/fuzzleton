@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  fuzzleton:
+    container_name: fuzzleton
+    build:
+      context: .  # Use the current directory (fuzzleton/)
+      dockerfile: Dockerfile
+    ports:
+      - "5173"  # Map port 5173 of the container to 5173 on the host
+    volumes:
+      - .:/app  # Mount the project directory to /app in the container
+      - /app/node_modules  # Prevent overwriting node_modules from the host
+    environment:
+      - NODE_ENV=development
+    command: npm run dev
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Add this to support Docker networking
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fuzzleton.rule=Host(`fuzzleton.tristan-patout.fr`)"
+      - "traefik.http.routers.fuzzleton.entrypoints=websecure"
+      - "traefik.http.routers.fuzzleton.tls.certresolver=myresolver"
+
+networks:
+  web:
+    external:
+      name: web

@@ -1,0 +1,47 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - master  # Only deploy when code is pushed to the master branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04 
+
+    steps:
+      - name: SSH into VPS & Deploy
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}  # The IP address of our VPS must be stored in the repository secrets
+          username: ${{ secrets.VPS_USER }}  # The username 'tristan' or 'virgile' (to improve, do set depending on the git user that pushes)
+          key: ${{ secrets.VPS_SSH_KEY }}  # The user's SSH private key must be stored in the repository secrets
+          port: 2003  # The SSH port for our VPS
+          script: |
+            # Set environment variables
+            APP_NAME="fuzzleton-app"  # The name of the app here (must match the service name in your docker-compose.yml file)
+            USER_NAME="${{ secrets.VPS_USER }}"
+            APP_PATH="/home/$USER_NAME/apps/$APP_NAME"
+
+            # Clone or update the app repository
+            if [ ! -d "$APP_PATH" ]; then
+              echo "--> No existing app: Cloning application..."
+              git clone git@github.com:${{ secrets.REPOSITORY_NAME }} $APP_PATH
+            else
+              echo "--> Existing app found: Updating application..."
+              cd $APP_PATH && git pull origin master
+            fi
+
+            cd $APP_PATH
+
+            # Stop and remove the old container (if any)
+            echo "--> Stopping and removing the old app container (if any)."
+            docker-compose down --volumes --remove-orphans
+
+            # Build the new image and start the app container
+            echo "--> Building and starting the application..."
+            docker-compose up -d --build
+
+            # Log the running container status and dynamic port
+            echo "--> Logging the running containers and dynamic port:"
+            docker ps --filter "name=$APP_NAME"
