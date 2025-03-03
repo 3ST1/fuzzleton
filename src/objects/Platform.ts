@@ -15,7 +15,7 @@ import { addPhysicsAggregate } from "../App";
 import { GameObject } from "./GameObject";
 
 class Platform extends GameObject {
-  metadata: { physicsAggregate: PhysicsAggregate };
+  metadata: { physicsAggregate: PhysicsAggregate } | undefined;
 
   //   scene: Scene; // defined in GameObject
   //   environment: GameEnvironment; // defined in GameObject
@@ -23,14 +23,14 @@ class Platform extends GameObject {
   width: number;
   height: number;
   depth: number;
-  rotation: number;
+  rotation!: number;
   position: Vector3;
   material: any;
-  slope: Mesh;
+  slope!: Mesh;
   //   physicsAggregate: any; // defined in GameObject
-  platform: Mesh;
+  platform!: Mesh;
   moving: boolean;
-  endPos: Vector3;
+  endPos!: Vector3;
   speed: number;
   shadows: boolean;
 

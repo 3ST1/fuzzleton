@@ -17,7 +17,7 @@ import {
 } from "@babylonjs/gui";
 import PlayerController from "./thirdPersonController";
 import { Level } from "./level/Level";
-import { hideLoading } from ".";
+// import { hideLoading } from ".";
 
 // enum State {
 //   START = 0,
@@ -29,8 +29,8 @@ import { hideLoading } from ".";
 export const GRAVITY = 9.81;
 
 class App {
-  private canvas: HTMLCanvasElement;
-  private engine: BABYLON.Engine;
+  private canvas!: HTMLCanvasElement;
+  private engine!: BABYLON.Engine;
   private scene: BABYLON.Scene | null = null;
   // private state: State = State.START;
   havokPlugin: any;
@@ -52,7 +52,7 @@ class App {
         if (this.scene?.debugLayer.isVisible()) {
           this.scene.debugLayer.hide();
         } else {
-          this.scene.debugLayer.show();
+          this.scene?.debugLayer.show();
         }
       }
     });
@@ -140,7 +140,9 @@ class App {
 
     scene.onBeforeRenderObservable.add(() => {
       environment.updateFps(this.engine.getFps());
-      char.updatePlayer(this.scene.deltaTime);
+      if (this.scene) {
+        char.updatePlayer(this.scene.deltaTime);
+      }
     });
     scene.onBeforeAnimationsObservable.add(() => {
       char.onBeforeAnimations();
@@ -150,6 +152,7 @@ class App {
     return scene;
   }
 
+  // @ts-ignore
   createButton(env: GameEnvironment, char: PlayerController, level: Level) {
     // console.log("CREATING BTN ");
     // Create an advanced dynamic texture (UI Layer)
@@ -206,7 +209,10 @@ class App {
         new BABYLON.Vector3(0, -GRAVITY, 0),
         this.physicsPlugin
       );
-      scene.getPhysicsEngine().setTimeStep(1 / 60);
+      const physicsEngine = scene.getPhysicsEngine();
+      if (physicsEngine) {
+        physicsEngine.setTimeStep(1 / 60);
+      }
 
       console.log("Physics enabled to scene: ");
 

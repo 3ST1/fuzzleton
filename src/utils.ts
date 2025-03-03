@@ -13,6 +13,7 @@ export function getRandomColorMaterial(scene: Scene): StandardMaterial {
 }
 
 export function getPBRMaterial(
+  this: any,
   color: Color3 = new Color3(1, 1, 1)
 ): PBRMaterial {
   const pbr = new PBRMaterial("pbr", this.scene);

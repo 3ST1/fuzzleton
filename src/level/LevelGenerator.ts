@@ -8,9 +8,9 @@ class LevelGenerator {
   scene: Scene;
   environment: any;
   generatedLevelObjects: GameObject[] = [];
-  lastY: number;
-  lastX: number;
-  lastZ: number;
+  lastY!: number;
+  lastX!: number;
+  lastZ!: number;
   // Constrain x and z within [-75, 75] to updat with the playable area
   maxX = 75;
   minX = -75;
@@ -190,8 +190,8 @@ class LevelGenerator {
         this.scene,
         this.environment,
         `randomObj${i}`,
-        null,
-        null,
+        undefined,
+        undefined,
         true
       );
       // Add the random objects to the level objects

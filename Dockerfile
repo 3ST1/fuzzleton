@@ -1,13 +1,26 @@
-FROM node:18-alpine
+# ---- Builder Stage ----
+    FROM node:18-alpine AS builder
 
-WORKDIR /app
-
-# Copy only package.json and package-lock.json first to install dependencies early
-COPY package.json package-lock.json ./
-RUN npm install
-
-# Now copy the rest of the application code
-COPY . .
-
-# Command to run the app using Vite in development mode
-CMD ["npm", "run", "dev"]
+    WORKDIR /app
+    
+    # Copy package.json and package-lock.json first to install dependencies early
+    COPY package.json package-lock.json ./
+    RUN npm install --frozen-lockfile
+    
+    # Now copy the rest of the application code
+    COPY . .
+    
+    # Build the project
+    RUN npm run build
+    
+    # ---- Runner Stage ----
+    FROM caddy:2.6.4-alpine AS runner
+    
+    WORKDIR /srv
+    
+    # Copy built files from builder stage to Caddy's default serve location
+    COPY --from=builder /app/dist /srv
+    
+    # Use Caddy to serve the static files
+    CMD ["caddy", "file-server", "--root", "/srv", "--listen", ":5173"]
+    

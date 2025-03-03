@@ -16,14 +16,16 @@ class GameObject {
   scene: Scene;
   environment: GameEnvironment;
   startPosition: Vector3;
-  physicsAggregate: PhysicsAggregate;
+  physicsAggregate!: PhysicsAggregate;
   name: string;
   endPosition: Vector3;
   constructor(
     scene: Scene,
     environment: GameEnvironment,
     name: string = "GameObject",
+    // @ts-ignore
     startPos: Vector3 = null,
+    // @ts-ignore
     endPos: Vector3 = null,
     createRandomObj: boolean = false
   ) {

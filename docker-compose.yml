@@ -4,18 +4,16 @@ services:
   fuzzleton:
     container_name: fuzzleton
     build:
-      context: .  # Use the current directory (fuzzleton/)
+      context: .  # Use the current directory
       dockerfile: Dockerfile
     ports:
-      - "5173"  # Map port 5173 of the container to 5173 on the host
+      - "5173" 
     volumes:
-      - .:/app  # Mount the project directory to /app in the container
+      - .:/app  # Mount project directory
       - /app/node_modules  # Prevent overwriting node_modules from the host
     environment:
-      - NODE_ENV=development
-    command: npm run dev
-    extra_hosts:
-      - "host.docker.internal:host-gateway"  # Add this to support Docker networking
+      - NODE_ENV=production
+    command: []  # No need to override the CMD, Caddy will serve the files
     restart: always
     labels:
       - "traefik.enable=true"
@@ -25,5 +23,4 @@ services:
 
 networks:
   web:
-    external:
-      name: web
+    external: true

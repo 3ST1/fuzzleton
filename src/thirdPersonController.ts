@@ -1,34 +1,60 @@
-import * as BABYLON from "@babylonjs/core";
-import * as GUI from "@babylonjs/gui";
 import type { IPhysicsEngine } from "@babylonjs/core/Physics/IPhysicsEngine";
 import { Environment as GameEnvironment } from "./Environnement";
-import { Scalar } from "@babylonjs/core";
+import {
+  AbstractEngine,
+  AbstractMesh,
+  ActionManager,
+  AnimationGroup,
+  ArcRotateCamera,
+  AssetContainer,
+  Color3,
+  ExecuteCodeAction,
+  IPhysicsCollisionEvent,
+  Mesh,
+  MeshBuilder,
+  Nullable,
+  PhysicsAggregate,
+  PhysicsEngine,
+  PhysicsEventType,
+  PhysicsMotionType,
+  PhysicsRaycastResult,
+  PhysicsShapeType,
+  Quaternion,
+  Ray,
+  RayHelper,
+  Scalar,
+  Scene,
+  SceneLoader,
+  Skeleton,
+  Sound,
+  Texture,
+  Vector3,
+} from "@babylonjs/core";
 import { GRAVITY } from "./App";
-import { Vector3 } from "@babylonjs/havok";
 import { FurMaterial } from "@babylonjs/materials";
 
 class PlayerController {
   debug: boolean = false;
 
-  private player!: BABYLON.Mesh;
-  private aggregatePlayer!: BABYLON.PhysicsAggregate;
-  private scene!: BABYLON.Scene;
-  private camera!: BABYLON.ArcRotateCamera;
+  private player!: Mesh;
+  private aggregatePlayer!: PhysicsAggregate;
+  private scene!: Scene;
+  private camera!: ArcRotateCamera;
   environment: GameEnvironment;
   thirdPerson: boolean;
-  private physicsEngine: BABYLON.Nullable<BABYLON.PhysicsEngine>;
-  private engine!: BABYLON.AbstractEngine;
+  private physicsEngine: Nullable<PhysicsEngine>;
+  private engine!: AbstractEngine;
 
   private playerDirection = -1;
-  private velocity = new BABYLON.Vector3(0, -9.8, 0);
+  private velocity = new Vector3(0, -9.8, 0);
   private isMoving = false;
   private inputMap: InputMap = {};
-  public meshContent!: BABYLON.AssetContainer;
+  public meshContent!: AssetContainer;
 
   hitBoxHeight = 3.6;
   hitBoxRadius = 0.5;
 
-  private onGroundRaycast = new BABYLON.PhysicsRaycastResult();
+  private onGroundRaycast = new PhysicsRaycastResult();
   // to check if the player is on the air
   private inAirState = {
     startHeight: 0, // starting height of the jump
@@ -40,32 +66,31 @@ class PlayerController {
   };
 
   // to climb a step in front of the player
-  // private stepRay!: BABYLON.Ray;
-  // private onStepRaycast = new BABYLON.PhysicsRaycastResult();
-  stepRays: [BABYLON.Ray, BABYLON.RayHelper, BABYLON.PhysicsRaycastResult][] =
-    [];
+  // private stepRay!: Ray;
+  // private onStepRaycast = new PhysicsRaycastResult();
+  stepRays: [Ray, RayHelper | null, PhysicsRaycastResult][] = [];
   private onStepState = {
     height: 0, // The height of the step
     task: false, // is there a task to go up the step
   };
 
   // loaded from the glb file
-  skeletons: BABYLON.Skeleton[];
-  heroMeshes: BABYLON.AbstractMesh[];
-  animationGroups: BABYLON.AnimationGroup[];
+  skeletons!: Skeleton[];
+  heroMeshes!: AbstractMesh[];
+  animationGroups!: AnimationGroup[];
 
-  sounds: { walking: BABYLON.Sound };
-  boxHelper: BABYLON.Mesh;
+  sounds!: { walking: Sound };
+  boxHelper!: Mesh;
   playerKeys: any;
   speed: number = 1;
-  // onStepRayHelper: BABYLON.RayHelper;
+  // onStepRayHelper: RayHelper;
   floorRay: any;
-  floorRayHelper: BABYLON.RayHelper;
+  floorRayHelper!: RayHelper;
   isInSleep: boolean = false;
   isWakingUp: boolean = false;
 
   constructor(
-    scene: BABYLON.Scene,
+    scene: Scene,
     environnement: GameEnvironment,
     thirdPers: boolean = true
   ) {
@@ -73,7 +98,7 @@ class PlayerController {
     this.environment = environnement;
     this.camera = environnement.camera;
     this.thirdPerson = thirdPers; // to use the third person view (true) or first person view (false)
-    this.physicsEngine = this.scene.getPhysicsEngine() as BABYLON.PhysicsEngine; // get havok physics engine
+    this.physicsEngine = this.scene.getPhysicsEngine() as PhysicsEngine; // get havok physics engine
     this.init();
   }
 
@@ -85,22 +110,22 @@ class PlayerController {
     this.setKeysObserver(); // set the movement leys and the keys observer
     this.setPlayerSounds();
 
-    this.player.position = new BABYLON.Vector3(49, 12, 58);
+    this.player.position = new Vector3(49, 12, 58);
     this.setPlayerToSleep();
   }
 
   private async _loadPlayer(
-    scene: BABYLON.Scene,
+    scene: Scene,
     mesheNames: string = "",
     rootUrl: string = "/models/",
     sceneFilename: string = "bearCharacter.glb"
-  ): Promise<BABYLON.Mesh> {
+  ): Promise<Mesh> {
     // Load player meshes async
     const {
       meshes: heroMeshes,
       skeletons,
       animationGroups,
-    } = await BABYLON.SceneLoader.ImportMeshAsync(
+    } = await SceneLoader.ImportMeshAsync(
       mesheNames,
       rootUrl,
       sceneFilename,
@@ -115,21 +140,18 @@ class PlayerController {
     fur.furLength = 0.2;
     fur.furAngle = Math.PI / 6;
     // fur.furAngle = 0;
-    fur.furColor = new BABYLON.Color3(1, 1, 1);
+    fur.furColor = new Color3(1, 1, 1);
     // fur.furSpacing = 6;
     // fur.furDensity = 100;
     // fur.furSpeed = 200;
-    // fur.furGravity = new BABYLON.Vector3(0, -1, 0);
+    // fur.furGravity = new Vector3(0, -1, 0);
     fur.furTexture = FurMaterial.GenerateTexture("furTexture", scene);
-    fur.diffuseTexture = new BABYLON.Texture(
-      "./textures/bluePinkFur.jpg",
-      scene
-    );
+    fur.diffuseTexture = new Texture("./textures/bluePinkFur.jpg", scene);
     // fur.furTexture = FurMaterial.GenerateTexture("furTexture", scene);
 
     // // CHANGE COLOR OF THE MESH
-    // const newMaterial = new BABYLON.PBRMaterial("newMat", this.scene);
-    // newMaterial.albedoColor = new BABYLON.Color3(0, 1, 0); // Green
+    // const newMaterial = new PBRMaterial("newMat", this.scene);
+    // newMaterial.albedoColor = new Color3(0, 1, 0); // Green
     // newMaterial.metallic = 0.5;
     // newMaterial.roughness = 0.5;
 
@@ -157,7 +179,7 @@ class PlayerController {
     });
 
     // box helper used for
-    this.boxHelper = BABYLON.MeshBuilder.CreateBox(
+    this.boxHelper = MeshBuilder.CreateBox(
       "lbl", // put a better name
       { height: 3.2 },
       this.scene
@@ -171,7 +193,7 @@ class PlayerController {
 
     // Create the player as a Capsule and attach the hero mesh to it as a child
     // this is done to compute the physics of the player on this capsule and the hero meshes will follow
-    const player = BABYLON.MeshBuilder.CreateCapsule(
+    const player = MeshBuilder.CreateCapsule(
       "playerCapsule",
       { height: this.hitBoxHeight, radius: this.hitBoxRadius },
       this.scene
@@ -183,8 +205,8 @@ class PlayerController {
     }
 
     // Align the meshes to the player (capsule)
-    hero.scaling = new BABYLON.Vector3(0.75, 0.95, 0.75);
-    // hero.scaling = new BABYLON.Vector3(2, 2, 2);
+    hero.scaling = new Vector3(0.75, 0.95, 0.75);
+    // hero.scaling = new Vector3(2, 2, 2);
     hero.position.y = -1.8;
 
     // Attach the hero mesh to the player
@@ -196,22 +218,22 @@ class PlayerController {
 
     // Add shadows
     heroMeshes.forEach((mesh) => {
-      this.environment.addShadowsToMesh(mesh as BABYLON.Mesh);
+      this.environment.addShadowsToMesh(mesh as Mesh);
     });
 
     return player;
   }
 
   public async setPlayerPhysics() {
-    const mesheRoot: BABYLON.AbstractMesh = this.heroMeshes[0];
-    const player: BABYLON.Mesh = this.player;
+    const mesheRoot: AbstractMesh = this.heroMeshes[0];
+    const player: Mesh = this.player;
     // Enable collision detection for the player mesh
     player.checkCollisions = true;
 
     // Create a physics aggregate for the player (used for physical simulations like collisions)
-    const aggregate = new BABYLON.PhysicsAggregate(
+    const aggregate = new PhysicsAggregate(
       player, // The mesh to apply the physics to
-      BABYLON.PhysicsShapeType.CAPSULE, // Use capsule shape for physics
+      PhysicsShapeType.CAPSULE, // Use capsule shape for physics
       {
         mass: 70, // player weights 70kg
         friction: 0.5,
@@ -221,14 +243,14 @@ class PlayerController {
     );
 
     // Set motion type to dynamic (the player can move under physics influence)
-    aggregate.body.setMotionType(BABYLON.PhysicsMotionType.DYNAMIC);
+    aggregate.body.setMotionType(PhysicsMotionType.DYNAMIC);
 
     // Disable pre-step calculations for performance improvement (optional)
     aggregate.body.disablePreStep = false;
 
     // Set the mass properties for the physics body (inertia is set to zero)
     aggregate.body.setMassProperties({
-      inertia: new BABYLON.Vector3(0, 0, 0),
+      inertia: new Vector3(0, 0, 0),
     });
 
     // Enable collision callback (for when the player collides with other objects)
@@ -242,55 +264,39 @@ class PlayerController {
 
     // Create and attach 4 rays for step up detection
     const vectors = [
-      new BABYLON.Vector3(
-        0,
-        -this.hitBoxHeight / 2 + 0.6,
-        this.hitBoxRadius + 0.35
-      ),
-      new BABYLON.Vector3(
-        0,
-        -this.hitBoxHeight / 2 + 0.6,
-        -this.hitBoxRadius - 0.35
-      ),
-      new BABYLON.Vector3(
-        -this.hitBoxRadius - 0.35,
-        -this.hitBoxHeight / 2 + 0.6,
-        0
-      ),
-      new BABYLON.Vector3(
-        this.hitBoxRadius + 0.35,
-        -this.hitBoxHeight / 2 + 0.6,
-        0
-      ),
+      new Vector3(0, -this.hitBoxHeight / 2 + 0.6, this.hitBoxRadius + 0.35),
+      new Vector3(0, -this.hitBoxHeight / 2 + 0.6, -this.hitBoxRadius - 0.35),
+      new Vector3(-this.hitBoxRadius - 0.35, -this.hitBoxHeight / 2 + 0.6, 0),
+      new Vector3(this.hitBoxRadius + 0.35, -this.hitBoxHeight / 2 + 0.6, 0),
     ];
 
     for (let i = 0; i < 4; i++) {
       this.stepRays[i] = [
-        new BABYLON.Ray(BABYLON.Vector3.Zero(), BABYLON.Vector3.Up()),
+        new Ray(Vector3.Zero(), Vector3.Up()),
         null,
-        new BABYLON.PhysicsRaycastResult(),
+        new PhysicsRaycastResult(),
       ];
 
-      this.stepRays[i][1] = new BABYLON.RayHelper(this.stepRays[i][0]);
-      this.stepRays[i][1].attachToMesh(
+      this.stepRays[i][1] = new RayHelper(this.stepRays[i][0]);
+      this.stepRays[i][1]?.attachToMesh(
         this.player,
-        new BABYLON.Vector3(0, -1, 0),
+        new Vector3(0, -1, 0),
         vectors[i],
         0.59 // we don't want to detect the ground but the step so must be less than 0.6
       );
     }
 
-    // this.stepRay = new BABYLON.Ray(
-    //   BABYLON.Vector3.Zero(),
-    //   BABYLON.Vector3.Up()
+    // this.stepRay = new Ray(
+    //   Vector3.Zero(),
+    //   Vector3.Up()
     // ); // Create the ray
-    // const stepRayHelper = new BABYLON.RayHelper(this.stepRay); // Helper to visualize the ray
+    // const stepRayHelper = new RayHelper(this.stepRay); // Helper to visualize the ray
 
     // Attach the ray to the player mesh with the specified direction and origin offsets
     // stepRayHelper.attachToMesh(
     //   this.player, // Mesh to attach the ray to
-    //   new BABYLON.Vector3(0, -1, 0), // Ray direction offset
-    //   new BABYLON.Vector3(
+    //   new Vector3(0, -1, 0), // Ray direction offset
+    //   new Vector3(
     //     this.hitBoxRadius + 0.35,
     //     -this.hitBoxHeight / 2 + 0.5,
     //     0
@@ -299,32 +305,29 @@ class PlayerController {
     // );
 
     // // show the ray
-    // stepRayHelper.show(this.scene, new BABYLON.Color3(1, 0, 0));
+    // stepRayHelper.show(this.scene, new Color3(1, 0, 0));
     // this.onStepRayHelper = stepRayHelper;
 
     // Create a ray for detecting the ground beneath the player
-    this.floorRay = new BABYLON.Ray(
-      BABYLON.Vector3.Zero(),
-      BABYLON.Vector3.Down()
-    );
+    this.floorRay = new Ray(Vector3.Zero(), Vector3.Down());
 
-    const floorRayHelper = new BABYLON.RayHelper(this.floorRay);
+    const floorRayHelper = new RayHelper(this.floorRay);
     floorRayHelper.attachToMesh(
       this.player,
-      new BABYLON.Vector3(0, -1, 0),
-      new BABYLON.Vector3(0, -this.hitBoxHeight / 2 + 0.5, 0),
+      new Vector3(0, -1, 0),
+      new Vector3(0, -this.hitBoxHeight / 2 + 0.5, 0),
       1
     );
 
     // show the ray
-    floorRayHelper.show(this.scene, new BABYLON.Color3(0, 1, 0));
+    floorRayHelper.show(this.scene, new Color3(0, 1, 0));
     this.floorRayHelper = floorRayHelper;
   }
 
   private setPlayerSounds() {
     // WE SHOULD PROBABLY USE ASYNC HERE
     this.sounds = {
-      walking: new BABYLON.Sound(
+      walking: new Sound(
         "wallking_sound",
         "/sounds/walking.wav",
         this.scene,
@@ -347,25 +350,19 @@ class PlayerController {
       running: "ShiftLeft",
     };
 
-    this.scene.actionManager = new BABYLON.ActionManager();
+    this.scene.actionManager = new ActionManager();
     this.scene.actionManager.registerAction(
-      new BABYLON.ExecuteCodeAction(
-        BABYLON.ActionManager.OnKeyDownTrigger,
-        (evt) => {
-          this.inputMap[evt.sourceEvent.code] = true;
-          // console.log("key down", evt.sourceEvent.code);
-        }
-      )
+      new ExecuteCodeAction(ActionManager.OnKeyDownTrigger, (evt) => {
+        this.inputMap[evt.sourceEvent.code] = true;
+        // console.log("key down", evt.sourceEvent.code);
+      })
     );
     this.scene.actionManager.registerAction(
-      new BABYLON.ExecuteCodeAction(
-        BABYLON.ActionManager.OnKeyUpTrigger,
-        (evt) => {
-          this.inputMap[evt.sourceEvent.code] = false;
-          // console.log("key up", evt.sourceEvent.code);
-          this.inputKeyUp();
-        }
-      )
+      new ExecuteCodeAction(ActionManager.OnKeyUpTrigger, (evt) => {
+        this.inputMap[evt.sourceEvent.code] = false;
+        // console.log("key up", evt.sourceEvent.code);
+        this.inputKeyUp();
+      })
     );
   }
 
@@ -433,7 +430,7 @@ class PlayerController {
     // If current animation's weight < 1 (not fully playing yet)
     if (this.curAnimParam.weight < 1) {
       // increase current animation's weight gradually by 0.05 (ensure it stays between 0 and 1)
-      this.curAnimParam.weight = BABYLON.Scalar.Clamp(
+      this.curAnimParam.weight = Scalar.Clamp(
         this.curAnimParam.weight + 0.05,
         0,
         1
@@ -470,12 +467,12 @@ class PlayerController {
     });
   }
 
-  private onCollision = (event: BABYLON.IPhysicsCollisionEvent) => {
+  private onCollision = (event: IPhysicsCollisionEvent) => {
     // console.log("onCollision", event);
     // console.log("collision - player position", this.player.position);
     // console.log("collision point", event?.point);
     if (
-      event.type === BABYLON.PhysicsEventType.COLLISION_STARTED && // collision started
+      event.type === PhysicsEventType.COLLISION_STARTED && // collision started
       this.inAirState.hasTask && // player is jumping
       (event?.point?._y || event?.point?.y || 0) >
         this.player.position.y + this.hitBoxHeight / 2.4 // collision point is above the player (we should do /2 but /2.3 so we take a little margin precaution to be sure)
@@ -490,11 +487,11 @@ class PlayerController {
   };
 
   private checkStepCollision(): [
-    BABYLON.Ray,
-    BABYLON.RayHelper,
-    BABYLON.PhysicsRaycastResult
+    Ray,
+    RayHelper | null,
+    PhysicsRaycastResult
   ][] {
-    let hasHit = [];
+    let hasHit: [Ray, RayHelper | null, PhysicsRaycastResult][] = [];
     for (let i = 0; i < this.stepRays.length; i++) {
       const [ray, rayHelper, res] = this.stepRays[i];
       if (res.hasHit) {
@@ -603,14 +600,14 @@ class PlayerController {
     // const { x, y, z } = this.player.position;
     const start = this.floorRay.origin.clone();
     const end = start.add(this.floorRay.direction.scale(this.floorRay.length));
-    this.physicsEngine.raycastToRef(start, end, this.onGroundRaycast);
+    this.physicsEngine?.raycastToRef(start, end, this.onGroundRaycast);
 
     // Raycast for steps
     for (let i = 0; i < this.stepRays.length; i++) {
       const [ray, rayHelper, res] = this.stepRays[i];
       const s_start = ray.origin.clone();
       const s_end = s_start.add(ray.direction.scale(ray.length));
-      this.physicsEngine.raycastToRef(s_start, s_end, res);
+      this.physicsEngine?.raycastToRef(s_start, s_end, res);
     }
     // const s_start = this.stepRay.origin.clone();
     // const s_end = s_start.add(
@@ -623,7 +620,7 @@ class PlayerController {
     // for debugging
     // show the floor ray (if the player is on the ground)
     if (this.debug && this.onGroundRaycast.hasHit) {
-      this.floorRayHelper.show(this.scene, new BABYLON.Color3(0, 1, 0));
+      this.floorRayHelper.show(this.scene, new Color3(0, 1, 0));
     } else {
       this.floorRayHelper.hide();
     }
@@ -631,12 +628,12 @@ class PlayerController {
     // show the step ray (if the player is near a small step )
     if (this.debug && hitStepRays.length > 0) {
       hitStepRays.forEach((ray) => {
-        ray[1].show(this.scene, new BABYLON.Color3(1, 0, 0));
+        if (ray[1]) ray[1].show(this.scene, new Color3(1, 0, 0));
       });
-      // this.onStepRayHelper.show(this.scene, new BABYLON.Color3(1, 0, 0));
+      // this.onStepRayHelper.show(this.scene, new Color3(1, 0, 0));
     } else {
       this.stepRays.forEach((ray) => {
-        ray[1].hide();
+        if (ray[1]) ray[1].hide();
       });
     }
 
@@ -803,8 +800,8 @@ class PlayerController {
   private lookAtBox() {
     const mesh = this.boxHelper;
     const cameraDirection = this.camera?.getForwardRay().direction;
-    if (!cameraDirection) return BABYLON.Vector3.Zero();
-    const d = new BABYLON.Vector3(cameraDirection.x, 0, cameraDirection.z); // no y bc only horizontal movement are taken into account
+    if (!cameraDirection) return Vector3.Zero();
+    const d = new Vector3(cameraDirection.x, 0, cameraDirection.z); // no y bc only horizontal movement are taken into account
 
     // adjust player mesh orientation based on the player's movement direction
     switch (this.playerDirection) {
@@ -814,7 +811,7 @@ class PlayerController {
       case PlayerDirection.Backward:
         mesh.lookAt(
           mesh.position.add(
-            new BABYLON.Vector3(-cameraDirection.x, 0, -cameraDirection.z)
+            new Vector3(-cameraDirection.x, 0, -cameraDirection.z)
           ),
           0,
           0,
@@ -843,16 +840,13 @@ class PlayerController {
 
     // Return the direction the player box helper is facing
     const dir = this.getBoxDirection();
-    const rot = BABYLON.Quaternion.FromLookDirectionRH(
-      dir,
-      BABYLON.Vector3.Up()
-    );
+    const rot = Quaternion.FromLookDirectionRH(dir, Vector3.Up());
     // rotate the player mesh to the new direction
     // smooth rotation using Slerp (Spherical Linear Interpolation) through Quaternion rotation
     const [mesheRoot] = this.player.getChildMeshes();
     mesheRoot.rotationQuaternion =
-      mesheRoot.rotationQuaternion || BABYLON.Quaternion.Identity();
-    BABYLON.Quaternion.SlerpToRef(
+      mesheRoot.rotationQuaternion || Quaternion.Identity();
+    Quaternion.SlerpToRef(
       mesheRoot.rotationQuaternion,
       rot,
       0.1,
@@ -863,8 +857,8 @@ class PlayerController {
 
   // get the direction the player helper box is facing based on its current rotation
   private getBoxDirection() {
-    const forward = BABYLON.Vector3.TransformCoordinates(
-      new BABYLON.Vector3(0, 0, 1),
+    const forward = Vector3.TransformCoordinates(
+      new Vector3(0, 0, 1),
       this.boxHelper.computeWorldMatrix(true)
     );
     const direction = forward.subtract(this.boxHelper.position);
@@ -882,7 +876,7 @@ class PlayerController {
     this.player.position.x = -6;
     this.player.position.y = 2;
     // rotate
-    // this.player.rotate(new BABYLON.Vector3(0, 1, 0), Math.PI);
+    // this.player.rotate(new Vector3(0, 1, 0), Math.PI);
   }
 
   public wakeUpPlayer() {
@@ -892,7 +886,7 @@ class PlayerController {
     this.isInSleep = false;
     this.player.position.y = 3;
     this.isWakingUp = true;
-    // this.player.rotate(new BABYLON.Vector3(0, 1, 0), Math.PI);
+    // this.player.rotate(new Vector3(0, 1, 0), Math.PI);
     // Play the StandingUp animation
     // this.onAnimWeight(AnimationKey.StandingUp);
 

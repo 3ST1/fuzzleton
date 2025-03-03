@@ -11,7 +11,7 @@ import { GameObject } from "./GameObject";
 import { Environment as GameEnvironment } from "../Environnement";
 
 class Wall extends GameObject {
-  wall: Mesh;
+  wall!: Mesh;
   height: number;
   width: number;
   depth: number;

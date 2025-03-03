@@ -26,19 +26,9 @@ import {
   GroundMesh,
   SpotLight,
   SceneLoader,
-  // HavokPlugin,
-  // PhysicsAggregate,
-  // PhysicsShapeType,
 } from "@babylonjs/core";
-import * as GUI from "@babylonjs/gui";
-import { AdvancedDynamicTexture, TextBlock } from "@babylonjs/gui";
-import { Wall } from "./objects/Wall";
+import { AdvancedDynamicTexture, Control, TextBlock } from "@babylonjs/gui";
 import { addPhysicsAggregate } from "./App";
-// declare var BABYLON: any; // Declare the global BABYLON object
-import { FurMaterial } from "@babylonjs/materials";
-import { GameObject } from "./objects/GameObject";
-// declare var WaterMaterial: any;
-// import { havokModule } from "./index";
 
 // create a type for the objects to add physics
 export type MyEnvObjsToAddPhysics = {
@@ -52,16 +42,16 @@ export type MyEnvObjsToAddPhysics = {
 export class Environment {
   private scene: Scene;
   private canvas: HTMLCanvasElement;
-  camera: ArcRotateCamera;
-  light: DirectionalLight;
-  shadowGenerator: ShadowGenerator;
+  camera!: ArcRotateCamera;
+  light!: DirectionalLight;
+  shadowGenerator!: ShadowGenerator;
   ground: any;
   previousCameraCollisionUpdate: number = 0;
 
   //   public camera: FreeCamera;
   objectsToAddPhysics: MyEnvObjsToAddPhysics[] = [];
-  skybox: Mesh;
-  hemiLight: HemisphericLight;
+  skybox!: Mesh;
+  hemiLight!: HemisphericLight;
   // shadowGenerator: any;
   bisShadowGenerator: any;
 
@@ -81,7 +71,7 @@ export class Environment {
         0,
         0,
         12,
-        undefined,
+        new Vector3(0, 0, 0),
         this.scene
       );
       this.camera.setPosition(new Vector3(0, 12, 3));
@@ -109,7 +99,7 @@ export class Environment {
         0,
         0,
         0, // No distance from target for first-person
-        undefined,
+        new Vector3(0, 0, 0),
         this.scene
       );
       // Positioning the camera in a first-person-like position
@@ -135,8 +125,11 @@ export class Environment {
       if (!isLocked) {
         canvas.requestPointerLock =
           canvas.requestPointerLock ||
+          // @ts-ignore
           canvas.msRequestPointerLock ||
+          // @ts-ignore
           canvas.mozRequestPointerLock ||
+          // @ts-ignore
           canvas.webkitRequestPointerLock ||
           false;
         if (canvas.requestPointerLock) {
@@ -426,10 +419,10 @@ export class Environment {
     });
   }
 
-  private advancedTexture = GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+  private advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI("UI");
 
-  private fpsText = new GUI.TextBlock();
-  private infosText = new GUI.TextBlock();
+  private fpsText = new TextBlock();
+  private infosText = new TextBlock();
 
   // FPS AND OTHER INFOS
   private setupInfosGUI(): void {
@@ -438,21 +431,18 @@ export class Environment {
     this.fpsText.color = "white";
     this.fpsText.paddingLeft = 10;
     this.fpsText.paddingBottom = 10;
-    this.fpsText.textHorizontalAlignment =
-      GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    this.fpsText.textVerticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+    this.fpsText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.fpsText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
     this.advancedTexture.addControl(this.fpsText);
 
-    const tipsBlock = new GUI.TextBlock();
+    const tipsBlock = new TextBlock();
     this.infosText.text = "Press esc to cancel mouse lock";
     this.infosText.fontSize = 13;
     this.infosText.color = "white";
     this.infosText.paddingLeft = 10;
     this.infosText.paddingBottom = 30;
-    this.infosText.textHorizontalAlignment =
-      GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    this.infosText.textVerticalAlignment =
-      GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+    this.infosText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.infosText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
     this.advancedTexture.addControl(tipsBlock);
   }
 

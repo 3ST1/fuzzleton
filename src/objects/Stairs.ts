@@ -13,7 +13,6 @@ import { addPhysicsAggregate } from "../App";
 import { GameObject } from "./GameObject";
 
 class Stairs extends GameObject {
-  wall: Mesh;
   // startPosition: Vector3; // defined in GameObject
   // endPosition: Vector3; // defined in GameObject
   nbSteps: number;
@@ -24,7 +23,7 @@ class Stairs extends GameObject {
   // name: string; // defined in GameObject
   // scene: Scene; // defined in GameObject
   // environment: GameEnvironment; // defined in GameObject
-  steps: [Mesh, PhysicsAggregate][];
+  steps: [Mesh, PhysicsAggregate][] = [];
   rotation: number;
   shadows: boolean;
   constructor(
@@ -78,6 +77,7 @@ class Stairs extends GameObject {
     environment: GameEnvironment,
     stairName: string = "stairs",
     startPosition: Vector3 = new Vector3(0, 0, 0),
+    // @ts-ignore
     rotation: number = 0,
     nbSteps: number = 10,
     stepWidth: number = 4,

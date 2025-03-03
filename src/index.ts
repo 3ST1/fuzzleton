@@ -1,4 +1,4 @@
-import App from "./app";
+import App from "./App";
 
 // const loadingText = document.createElement("div");
 // loadingText.id = "loading";
@@ -19,9 +19,9 @@ import App from "./app";
 // }, 500);
 
 // start when button #startButton is clicked
-document.querySelector("#startButton").addEventListener("click", () => {
+document.querySelector("#startButton")?.addEventListener("click", () => {
   // hide button
-  document.querySelector("#startButton").remove();
+  document.querySelector("#startButton")?.remove();
 
   // Create the canvas HTML element and attach it to the webpage
   const canvas = document.createElement("canvas");
