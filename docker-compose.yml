@@ -2,7 +2,10 @@ version: '3.8'
 
 services:
   fuzzleton:
+    image: fuzzleton:latest
     container_name: fuzzleton
+    networks:
+      - web
     build:
       context: .
       dockerfile: Dockerfile
@@ -22,4 +25,5 @@ services:
 
 networks:
   web:
-    external: true
+    external: 
+      name: web
