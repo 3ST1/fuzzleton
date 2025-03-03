@@ -3,12 +3,19 @@
 
     WORKDIR /app
     
+    # Install Git and Git LFS
+    RUN apk add --no-cache git git-lfs \
+        && git lfs install --skip-repo
+    
     # Copy package.json and package-lock.json first to install dependencies early
     COPY package.json package-lock.json ./
     RUN npm install --frozen-lockfile
     
     # Now copy the rest of the application code
     COPY . .
+    
+    # Ensure Git LFS files are downloaded
+    RUN git lfs pull
     
     # Build the project
     RUN npm run build

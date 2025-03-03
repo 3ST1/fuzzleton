@@ -1,5 +1,4 @@
 version: '3.8'
-
 services:
   fuzzleton:
     container_name: fuzzleton
@@ -13,7 +12,7 @@ services:
       - /app/node_modules  # Prevent overwriting node_modules from the host
     environment:
       - NODE_ENV=production
-    command: []  # No need to override the CMD, Caddy will serve the files
+    command: ["sh", "-c", "git lfs pull && npm start"]  # Ensure LFS is pulled before running the app
     restart: always
     labels:
       - "traefik.enable=true"
