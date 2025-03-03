@@ -7,27 +7,26 @@
     RUN apk add --no-cache git git-lfs \
         && git lfs install --skip-repo
     
-    # Copy package.json and package-lock.json first to install dependencies early
+    # Copy package files and install dependencies
     COPY package.json package-lock.json ./
     RUN npm install --frozen-lockfile
     
-    # Now copy the rest of the application code
+    # Copy the rest of the code and build
     COPY . .
-    
-    # Ensure Git LFS files are downloaded
     RUN git lfs pull
-    
-    # Build the project
     RUN npm run build
     
     # ---- Runner Stage ----
-    FROM caddy:2.6.4-alpine AS runner
+    FROM nginx:alpine AS runner
     
-    WORKDIR /srv
+    WORKDIR /usr/share/nginx/html
     
-    # Copy built files from builder stage to Caddy's default serve location
-    COPY --from=builder /app/dist /srv
+    # Copy built files from builder stage
+    COPY --from=builder /app/dist /usr/share/nginx/html
     
-    # Use Caddy to serve the static files
-    CMD ["caddy", "file-server", "--root", "/srv", "--listen", ":5173"]
+    # Expose port 80 (Traefik will handle HTTPS)
+    EXPOSE 80
+    
+    # Start Nginx
+    CMD ["nginx", "-g", "daemon off;"]
     

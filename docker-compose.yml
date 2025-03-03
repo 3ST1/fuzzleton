@@ -1,12 +1,13 @@
 version: '3.8'
+
 services:
   fuzzleton:
     container_name: fuzzleton
     build:
-      context: .  
+      context: .
       dockerfile: Dockerfile
     ports:
-      - "5173" 
+      - "80" 
     volumes:
       - .:/app  
       - /app/node_modules  # Prevent overwriting node_modules from the host
