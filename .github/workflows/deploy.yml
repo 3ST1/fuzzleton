@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-22.04 
+    runs-on: ubuntu-22.04
 
     steps:
       - name: SSH into VPS & Deploy
@@ -23,6 +23,14 @@ jobs:
             USER_NAME="${{ secrets.VPS_USER }}"
             APP_PATH="/home/$USER_NAME/apps/$APP_NAME"
 
+            # Install Git and Git LFS if they aren't already installed
+            echo "--> Installing Git and Git LFS..."
+            sudo apt update
+            sudo apt install -y git
+            curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+            sudo apt install -y git-lfs
+            git lfs install
+
             # Clone or update the app repository
             if [ ! -d "$APP_PATH" ]; then
               echo "--> No existing app: Cloning application..."
@@ -33,6 +41,11 @@ jobs:
             fi
 
             cd $APP_PATH
+
+            # Ensure Git LFS files are pulled
+            echo "--> Pulling Git LFS files..."
+            git lfs 
+            pull || echo "Git LFS pull failed but continuing..."
 
             # Stop and remove the old container (if any)
             echo "--> Stopping and removing the old app container (if any)."
