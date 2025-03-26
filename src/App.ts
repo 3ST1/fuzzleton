@@ -1,4 +1,4 @@
-import * as BABYLON from "@babylonjs/core";
+import * as BABYLON from "@babylonjs/core"; // Seems like we need that for BABYLON.HavokPlugin
 import "@babylonjs/core/Debug/debugLayer";
 import "@babylonjs/inspector";
 import "@babylonjs/loaders/glTF";

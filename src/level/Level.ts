@@ -5,6 +5,9 @@ import {
   PhysicsShapeType,
   Mesh,
   SceneLoader,
+  MeshBuilder,
+  Physics6DoFConstraint,
+  HingeConstraint,
 } from "@babylonjs/core";
 import { Wall } from "../objects/Wall";
 import {
@@ -147,14 +150,70 @@ export class Level {
     this.lvlGen.generateRandomObjects(nbObjs);
   }
 
+  public physicsPlane(): void {
+    const width = 5;
+    const depth = 15;
+    const startPos = new Vector3(15, 0, 15); // Start higher to see behavior
+
+    // Create base (static, non-reactive)
+    const base = MeshBuilder.CreateBox(
+      "balanceBase",
+      { width: width, height: 2, depth: 0.5 },
+      this.scene
+    );
+    base.position = startPos.clone();
+
+    // Apply physics to base (static)
+    const fixedMass = new PhysicsAggregate(
+      base,
+      PhysicsShapeType.BOX,
+      { mass: 0 },
+      this.scene
+    );
+
+    // Create the balancing plane
+    const planeMesh = MeshBuilder.CreateBox(
+      "plane",
+      { width: width, height: 0.8, depth: depth },
+      this.scene
+    );
+
+    // Correct plane position to be **just above** the base
+    planeMesh.position = startPos.clone();
+    planeMesh.position.y += 2; // 0.5 (base height) + 0.05 (half of plane height)
+
+    // Apply physics to the plane (dynamic)
+    const plane = new PhysicsAggregate(
+      planeMesh,
+      PhysicsShapeType.BOX,
+      { mass: 100, friction: 0.5, restitution: 0 },
+      this.scene
+    );
+
+    // Define hinge constraint with correct pivots
+    const joint = new HingeConstraint(
+      new Vector3(0, 0.9, 0), // Pivot at the **top of the base**
+      new Vector3(0, -0.05, 0), // Pivot at **bottom of the plane**
+      new Vector3(1, 0, 0), // X-axis rotation
+      new Vector3(1, 0, 0),
+      this.scene
+    );
+
+    // Attach the hinge constraint
+    fixedMass.body.addConstraint(plane.body, joint);
+  }
+
   public async initLevel(): Promise<void> {
+    // this.scene.debugLayer.show();
+
     await this.generateWalls();
-    await this.loadAssets();
+    // await this.loadAssets();
 
     // Generate predefined objs
     this.lvlGen.generateStairs();
     this.lvlGen.generateSlopes();
     this.lvlGen.generatePlatforms();
+    this.physicsPlane();
 
     this.lvlObjs = this.lvlGen.getGeneratedObjects();
 

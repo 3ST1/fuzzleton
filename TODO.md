@@ -1,0 +1,1 @@
+- Seems like when passing from 60fps to 30fps character is going twice faster... Need to ensure that moving speed is not frame dependent but time dependent (delta time).
