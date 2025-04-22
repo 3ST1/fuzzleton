@@ -173,24 +173,24 @@ export class GameEnvironment {
 
     // Directional Light 1
     var light = new DirectionalLight(
-      "dir01",
+      "lightDir01",
       new Vector3(-1, -1, -1),
       this.scene
     );
     light.position = new Vector3(1000, 500, 350);
     light.intensity = 0.5;
 
-    light.shadowMinZ = 0;
-    light.shadowMaxZ = 1500;
-    // light.shadowOrthoScale = 0.2; // prevent shadow frustrum clipping, inflate the frustum
+    light.shadowMinZ = -0;
+    light.shadowMaxZ = 2500;
 
     // https://forum.babylonjs.com/t/shadow-getting-clipped/43849/4
     light.autoUpdateExtends = false;
-    // // light.shadowOrthoScale = 0.2; //prevent shadow frustrum clipping,  inflate the frustum  see https://forum.babylonjs.com/t/shadow-getting-clipped/43849
-    // light.orthoTop = 0;
-    // light.orthoBottom = 0;
-    // light.orthoLeft = 10;
-    // light.orthoRight = 1100;
+    light.shadowOrthoScale = 0.2; //prevent shadow frustrum clipping,  inflate the frustum  see https://forum.babylonjs.com/t/shadow-getting-clipped/43849
+    // Set wide frustum boundaries to cover the entire playable area
+    light.orthoTop = 500; // Upper Y boundary (increase if shadows clip vertically)
+    light.orthoBottom = -500; // Lower Y boundary
+    light.orthoLeft = -500; // Left X boundary
+    light.orthoRight = 500; // Right X boundary
 
     // var lightSphere = Mesh.CreateSphere("sphere", 10, 2, this.scene);
     // lightSphere.position = light.position;
@@ -246,7 +246,7 @@ export class GameEnvironment {
     // // this.shadowGenerators.push(new ShadowGenerator(4096, light2));
     // // this.shadowGenerators.push(new ShadowGenerator(2048, spotLight));
 
-    this.shadowGenerator.mapSize = 2048;
+    this.shadowGenerator.mapSize = 14000;
     this.shadowGenerator.bias = 0.001;
     this.shadowGenerator.normalBias = 0.02;
     // this.shadowGenerator.useBlurExponentialShadowMap = false;
@@ -458,7 +458,7 @@ export class GameEnvironment {
     this.fpsText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
     this.advancedTexture.addControl(this.fpsText);
 
-    this.infosText.text = "Press esc to cancel mouse lock";
+    this.infosText.text = "Press esc to cancel mouse lock \nHold Shift to run";
     this.infosText.fontSize = 13;
     this.infosText.color = "white";
     this.infosText.paddingLeft = 10;

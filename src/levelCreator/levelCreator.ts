@@ -446,6 +446,7 @@ class LevelCreator {
   }
 
   private handleBackToMenu(): void {
+    console.log("Back to menu clicked - cleaning up scene");
     // Clean up all movement paths and rotations before scene disposal
     if (this.objectController) {
       // Make sure all objects are cleaned up
@@ -724,7 +725,11 @@ class LevelCreator {
       if (this.currentDragMeshType.startsWith("model:")) {
         newMesh = this.createPermanentModelMesh();
       } else {
-        newMesh = this.createPermanentBasicShapeMesh();
+        console.error(
+          "Unsupported mesh type for placement must be model:",
+          this.currentDragMeshType
+        );
+        throw new Error("Unsupported mesh type for placement");
       }
 
       if (!newMesh) {
@@ -782,25 +787,6 @@ class LevelCreator {
     }
 
     console.error("Failed to create permanent model mesh");
-    return null;
-  }
-
-  private createPermanentBasicShapeMesh(): Mesh | null | undefined {
-    console.log(`Creating permanent basic shape: ${this.currentDragMeshType}`);
-
-    const newMesh = this.modelManager?.createBasicShapeAtPosition(
-      this.currentDragMeshType,
-      this.previewMesh!.position,
-      this.materials
-    );
-
-    if (newMesh) {
-      console.log("Successfully placed basic shape mesh:", newMesh);
-      this.placedMeshes.push(newMesh);
-      return newMesh;
-    }
-
-    console.error("Failed to create permanent basic shape mesh");
     return null;
   }
 
@@ -1000,7 +986,10 @@ class LevelCreator {
     if (meshData.type === "model" && meshData.modelId) {
       newMesh = await this.loadModelMesh(meshData);
     } else {
-      newMesh = this.loadBasicShapeMesh(meshData);
+      console.error(
+        "Unsupported mesh type or missing modelId for ",
+        meshData.id
+      );
     }
 
     if (!newMesh) {
@@ -1037,20 +1026,6 @@ class LevelCreator {
         meshData.position.y || 0,
         meshData.position.z
       )
-    );
-  }
-
-  private loadBasicShapeMesh(meshData: any): Mesh | null | undefined {
-    console.log(`Creating basic shape: ${meshData.type}`);
-    // Load basic shape with explicit position
-    return this.modelManager?.createBasicShapeAtPosition(
-      meshData.type,
-      new Vector3(
-        meshData.position.x,
-        meshData.position.y || 0,
-        meshData.position.z
-      ),
-      this.materials
     );
   }
 

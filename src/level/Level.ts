@@ -15,13 +15,14 @@ import {
 } from "@babylonjs/core";
 import { Wall } from "../objects/Wall";
 import { GameEnvironment, MyEnvObjsToAddPhysics } from "../GameEnvironnement";
-import { addPhysicsAggregate, addItem } from "../App";
+import { addPhysicsAggregate } from "../App";
 import { Stairs } from "../objects/Stairs";
 import { GameObject } from "../objects/GameObject";
 import { Platform } from "../objects/Platform";
 import { Slope } from "../objects/Slope";
 import { LevelGenerator } from "./LevelGenerator";
 import { levelFromFile } from "./levelFromFile";
+import { addItemToAssetManager } from "../basicAssetManager";
 export interface WallProp {
   x: number;
   y: number;
@@ -145,7 +146,7 @@ export class Level {
       });
     };
 
-    addItem(
+    addItemToAssetManager(
       this.assetsManager,
       "/models/",
       "blanketFort.glb",
@@ -200,7 +201,7 @@ export class Level {
   public physicsPlane(): void {
     const width = 5;
     const depth = 15;
-    const startPos = new Vector3(15, 0, 35);
+    const startPos = new Vector3(25, 0, -35);
 
     // Create base (static, non-reactive)
     const base = MeshBuilder.CreateBox(
@@ -506,7 +507,7 @@ export class Level {
       }
     };
 
-    addItem(
+    addItemToAssetManager(
       this.assetsManager,
       "/kaykit/",
       "spikeRoller.gltf.glb",
@@ -561,7 +562,13 @@ export class Level {
       }
     };
 
-    addItem(this.assetsManager, "/models/", "pillow.glb", "pillow", onSuccess);
+    addItemToAssetManager(
+      this.assetsManager,
+      "/models/",
+      "pillow.glb",
+      "pillow",
+      onSuccess
+    );
   }
 
   public loadSwiper(speed: number = 1): void {
@@ -598,7 +605,7 @@ export class Level {
       this.lvlObjs.push(hero);
     };
 
-    addItem(
+    addItemToAssetManager(
       this.assetsManager,
       "/kaykit/",
       "swiperLong_teamBlue.gltf.glb",
@@ -643,7 +650,7 @@ export class Level {
       this.lvlObjs.push(hero);
     };
 
-    addItem(
+    addItemToAssetManager(
       this.assetsManager,
       "/kaykit/",
       "swiperLong_teamBlue.gltf.glb",
@@ -719,7 +726,7 @@ export class Level {
       }
     };
 
-    addItem(
+    addItemToAssetManager(
       this.assetsManager,
       "/models/",
       "grid_map_f1.glb",
@@ -728,31 +735,36 @@ export class Level {
     );
   }
 
-  public async initLevel(): Promise<void> {
+  public async initLevel(assetsManager: AssetsManager): Promise<void> {
     console.log("init Level...");
     // this.scene.debugLayer.show();
 
-    // this.generateWalls();
+    this.generateWalls();
 
-    // this.loadBlanketFort();
+    this.loadBlanketFort();
 
-    // this.loadSpikeRoller();
+    this.loadSpikeRoller();
     // this.loadTestMap();
     // this.loadSwiper();
-    // this.loadPillow();
+    this.loadPillow();
 
     // this.loadBoudin();
 
     // await this.loadAssetsKit();
 
     // Generate predefined objs
-    // this.lvlGen.generateStairs();
-    // this.lvlGen.generateSlopes();
-    // this.lvlGen.generatePlatforms();
+    this.lvlGen.generateStairs();
+    this.lvlGen.generateSlopes();
+    this.lvlGen.generatePlatforms();
     this.physicsPlane();
 
     // this.lvlObjs = this.lvlGen.getGeneratedObjects();
 
+    // making it assync to wait for the assets to be loaded
+    await new Promise<void>((resolve) => {
+      assetsManager.onFinish = () => resolve();
+      assetsManager.load();
+    });
     const lvlFromFile = new levelFromFile(this.scene, this.gameEnv);
 
     console.log("Level Loaded!");

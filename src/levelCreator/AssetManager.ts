@@ -415,14 +415,6 @@ export class AssetManagerService {
     }
   }
 
-  // Debug method to check loaded assets
-  public debugAvailableModels(): void {
-    console.log("Available models:", Object.keys(this.modelAssets));
-    for (const [key, container] of Object.entries(this.modelAssets)) {
-      console.log(`Model ${key}: ${container.meshes.length} meshes`);
-    }
-  }
-
   // Load multiple assets from a list of filenames
   public addModelsToAssetManager(rootPath: string, modelFiles: string[]): void {
     modelFiles.forEach((filename) => {
@@ -488,7 +480,6 @@ export class AssetManagerService {
           Object.keys(this.modelAssets)
         );
         // Debug the loaded assets
-        this.debugAvailableModels();
         onFinish();
       };
     }

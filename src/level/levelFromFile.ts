@@ -22,6 +22,7 @@ import { AssetManagerService } from "../levelCreator/AssetManager";
 import { ObjectController } from "../levelCreator/ObjectController";
 import { GameEnvironment } from "../GameEnvironnement";
 
+// TO TEST / DEBUG
 const meshesDocData = {
   name: "MyLevel",
   meshes: [
@@ -32,7 +33,7 @@ const meshesDocData = {
       rootFolder: "/kaykit/",
       filename: "tileLarge_teamYellow.gltf.glb",
       position: {
-        x: 0,
+        x: 30,
         y: 0,
         z: 0,
       },
@@ -55,7 +56,7 @@ const meshesDocData = {
       rootFolder: "/kaykit/",
       filename: "tileLarge_teamYellow.gltf.glb",
       position: {
-        x: 6,
+        x: 36,
         y: 0,
         z: -0.011101436022006084,
       },
@@ -69,6 +70,15 @@ const meshesDocData = {
         x: 1,
         y: 1,
         z: 1,
+      },
+      movement: {
+        enabled: true,
+        speed: 5,
+        endPosition: {
+          x: 72,
+          y: 36,
+          z: 0,
+        },
       },
     },
     {
@@ -110,7 +120,7 @@ const meshesDocData = {
       rootFolder: "/kaykit/",
       filename: "barrierLadder.gltf.glb",
       position: {
-        x: -141.65918288993208,
+        x: -11.65918288993208,
         y: -3.552713678800501e-15,
         z: 99.13787914256511,
       },
@@ -121,9 +131,15 @@ const meshesDocData = {
         w: 0.8660254037844386,
       },
       scaling: {
-        x: 2.717944050000005,
-        y: 2.717944050000005,
-        z: 2.717944050000005,
+        x: 4.717944050000005,
+        y: 4.717944050000005,
+        z: 4.717944050000005,
+      },
+      physics: {
+        enabled: true,
+        mass: 10,
+        friction: 0.2,
+        restitution: 0.2,
       },
     },
     {
@@ -149,7 +165,7 @@ const meshesDocData = {
         z: 1,
       },
       rotation_animation: {
-        enabled: false,
+        enabled: true,
         axis: {
           x: 0,
           y: 1,
@@ -161,7 +177,7 @@ const meshesDocData = {
         enabled: true,
         mass: 10,
         friction: 0.2,
-        restitution: 3.2,
+        restitution: 0.2,
       },
     },
     {
@@ -370,20 +386,20 @@ export class levelFromFile {
 
     if (meshData.movement && meshData.movement.enabled) {
       this.applyMovementData(mesh, meshData);
+    }
+
+    // Apply physics data first - it may return a new merged mesh
+    let activeMesh = mesh;
+    const mergedMesh = this.applyPhysicsData(mesh, meshData);
+    if (mergedMesh) {
+      activeMesh = mergedMesh;
+      console.log(
+        `Using merged mesh for further operations: ${activeMesh.name}`
+      );
     } else {
-      // Apply physics data first - it may return a new merged mesh
-      let activeMesh = mesh;
-      const mergedMesh = this.applyPhysicsData(mesh, meshData);
-      if (mergedMesh) {
-        activeMesh = mergedMesh;
-        console.log(
-          `Using merged mesh for further operations: ${activeMesh.name}`
-        );
-      } else {
-        console.log(
-          `No physics mesh created, using original: ${activeMesh.name}`
-        );
-      }
+      console.log(
+        `No physics mesh created, using original: ${activeMesh.name}`
+      );
     }
 
     // Apply rotation animation data using the correct mesh

@@ -112,8 +112,12 @@ export class LevelCreatorUI {
     backButton.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     backButton.left = "20px";
     backButton.top = "20px";
+    backButton.zIndex = 100;
 
-    backButton.onPointerClickObservable.add(() => this.events.onBackToMenu());
+    backButton.onPointerClickObservable.add(() => {
+      console.log("Back to Menu clicked");
+      this.events.onBackToMenu();
+    });
 
     this.editorUI.addControl(backButton);
   }

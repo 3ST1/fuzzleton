@@ -15,6 +15,7 @@ import PlayerController from "./player/thirdPersonController";
 import { Level } from "./level/Level";
 import MainMenu from "./MainMenu";
 import LevelCreator from "./levelCreator/levelCreator";
+import { initializeAssetsManager } from "./basicAssetManager";
 
 enum GameState {
   MENU = 0,
@@ -29,6 +30,7 @@ class App {
   private engine!: BABYLON.Engine;
   private scene: BABYLON.Scene | null = null;
   private gameState: GameState = GameState.MENU;
+  private assetsManager!: BABYLON.AssetsManager;
 
   havokPlugin: any;
   physicsPlugin: any;
@@ -133,7 +135,7 @@ class App {
     const scene = new BABYLON.Scene(this.engine);
 
     // initialize the AssetsManager
-    this.initializeAssetsManager(scene);
+    this.assetsManager = initializeAssetsManager(scene, this.engine);
 
     this._setupPhysics(scene);
 
@@ -161,7 +163,7 @@ class App {
     const level = new Level(scene, environment, this.assetsManager);
 
     this.createButton(environment, char, level);
-    await level.initLevel();
+    await level.initLevel(this.assetsManager);
     console.log("assetsManager after level creation : ", this.assetsManager);
 
     this.canvas.style.opacity = "1";
@@ -175,8 +177,6 @@ class App {
     scene.onBeforeAnimationsObservable.add(() => {
       char.onBeforeAnimations();
     });
-
-    this.assetsManager.load();
 
     return scene;
   }
@@ -269,45 +269,6 @@ class App {
       return scene.getPhysicsEngine();
     }
   }
-
-  ////////////////////////
-  private assetsManager!: BABYLON.AssetsManager;
-
-  private initializeAssetsManager(scene: BABYLON.Scene): BABYLON.AssetsManager {
-    console.log("Initializing assets manager...");
-    this.assetsManager = new BABYLON.AssetsManager(scene);
-    console.log("Assets manager initialized: ", this.assetsManager);
-    this.assetsManager.onProgress = (
-      remainingCount,
-      totalCount,
-      lastFinishedTask
-    ) => {
-      console.log(
-        "Loading assets: ",
-        remainingCount,
-        " out of ",
-        totalCount,
-        " items still need to be loaded."
-      );
-
-      this.engine.loadingUIText =
-        "Loading the scene... " +
-        remainingCount +
-        " out of " +
-        totalCount +
-        " items still need to be loaded.";
-    };
-
-    //put the text at the bottom of the screen
-    this.engine.loadingScreen.loadingUIBackgroundColor = "orange";
-
-    this.assetsManager.onFinish = (tasks) => {
-      console.log("All assets loaded: ", tasks);
-      // this.hideLoading();
-    };
-
-    return this.assetsManager;
-  }
 }
 
 function getLinearDamping(mass: number, friction: number): number {
@@ -337,41 +298,5 @@ export function addPhysicsAggregate(
 
   return physicsAggregate;
 }
-
-export const addItem = (
-  assetsManager: BABYLON.AssetsManager,
-  rootUrl: string,
-  model: string,
-  id: string,
-  onSuccess: any = null,
-  onError: any = null
-) => {
-  if (!rootUrl || !model) {
-    console.error("No asset provided -> not adding it to the scene.");
-    return false;
-  }
-
-  console.log(
-    "Adding the following item to asset manager: ",
-    id,
-    rootUrl,
-    model
-  );
-
-  const meshTask = assetsManager.addMeshTask(id, "", rootUrl, model);
-
-  // Pass in custom function to call after asset loads
-  meshTask.onSuccess = onSuccess;
-
-  // On error, just get rid of any problematic meshes
-  meshTask.onError = (task) => {
-    if (task.loadedMeshes && task.loadedMeshes.length > 0) {
-      task.loadedMeshes.forEach((mesh) => {
-        mesh.dispose();
-      });
-    }
-  };
-  return meshTask;
-};
 
 export default App;

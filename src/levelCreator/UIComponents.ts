@@ -11,13 +11,9 @@ import {
   Image,
 } from "@babylonjs/gui";
 
-/**
- * Handles creation of UI components for the level creator
- */
+// Handles creation of UI components for the level creator
 export class UIComponentsFactory {
-  /**
-   * Create a spacing element for UI
-   */
+  // Create a spacing element for UI
   static createSpacing(height: number): Rectangle {
     const spacing = new Rectangle("spacing");
     spacing.width = 1;
@@ -26,9 +22,7 @@ export class UIComponentsFactory {
     return spacing;
   }
 
-  /**
-   * Create basic button with standard styling
-   */
+  // Create basic button with standard styling
   static createButton(
     name: string,
     text: string,
@@ -52,9 +46,7 @@ export class UIComponentsFactory {
     return btn;
   }
 
-  /**
-   * Create a sidebar panel with standard styling
-   */
+  // Create a sidebar panel with standard styling
   static createSidebar(
     name: string,
     options: {
@@ -84,9 +76,7 @@ export class UIComponentsFactory {
     return sidebar;
   }
 
-  /**
-   * Create a control panel for object manipulation
-   */
+  //Create a control panel for object manipulation
   static createControlPanel(name: string): Rectangle {
     const controlsPanel = new Rectangle(name);
     controlsPanel.width = "220px";
@@ -102,9 +92,7 @@ export class UIComponentsFactory {
     return controlsPanel;
   }
 
-  /**
-   * Create a scroll viewer for a container
-   */
+  // Create a scroll viewer for a container
   static createScrollViewer(name: string): ScrollViewer {
     const scrollViewer = new ScrollViewer(name);
     scrollViewer.width = "100%";
@@ -114,9 +102,7 @@ export class UIComponentsFactory {
     return scrollViewer;
   }
 
-  /**
-   * Create an image preview for a model or shape
-   */
+  // Create an image preview for a model or shape
   static createImagePreview(
     name: string,
     imageUrl: string,
