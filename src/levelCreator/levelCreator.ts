@@ -16,13 +16,12 @@ import {
   TransformNode,
   Quaternion,
 } from "@babylonjs/core";
-import "@babylonjs/loaders/glTF"; // Import GLTF loader
+import "@babylonjs/loaders/glTF";
 
 import { LevelCreatorUI, UIEvents } from "./UI";
 import { AssetManagerService } from "./AssetManager";
 import { UIComponentsFactory } from "./UIComponents";
 import { MeshUtils } from "./MeshUtils";
-import { MaterialFactory } from "./MaterialFactory";
 import { ObjectController } from "./ObjectController";
 import { ModelManager } from "./ModelManager";
 import { SceneSerializer } from "./SceneSerializer";

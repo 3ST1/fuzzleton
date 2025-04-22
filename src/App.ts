@@ -11,7 +11,7 @@ import {
   TextBlock,
   Control,
 } from "@babylonjs/gui";
-import PlayerController from "./thirdPersonController";
+import PlayerController from "./player/thirdPersonController";
 import { Level } from "./level/Level";
 import MainMenu from "./MainMenu";
 import LevelCreator from "./levelCreator/levelCreator";
