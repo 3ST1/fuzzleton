@@ -1,5 +1,5 @@
 import type { IPhysicsEngine } from "@babylonjs/core/Physics/IPhysicsEngine";
-import { Environment as GameEnvironment } from "./Environnement";
+import { GameEnvironment as GameEnvironment } from "../GameEnvironnement";
 import {
   AbstractEngine,
   AbstractMesh,
@@ -8,7 +8,9 @@ import {
   ArcRotateCamera,
   AssetContainer,
   Color3,
+  Color4,
   ExecuteCodeAction,
+  HighlightLayer,
   IPhysicsCollisionEvent,
   Mesh,
   MeshBuilder,
@@ -27,10 +29,11 @@ import {
   SceneLoader,
   Skeleton,
   Sound,
+  StandardMaterial,
   Texture,
   Vector3,
 } from "@babylonjs/core";
-import { GRAVITY } from "./App";
+import { GRAVITY } from "../App";
 import { FurMaterial } from "@babylonjs/materials";
 
 class PlayerController {
@@ -43,13 +46,25 @@ class PlayerController {
   environment: GameEnvironment;
   thirdPerson: boolean;
   private physicsEngine: Nullable<PhysicsEngine>;
-  private engine!: AbstractEngine;
+  // private engine!: AbstractEngine;
 
   private playerDirection = -1;
-  private velocity = new Vector3(0, -9.8, 0);
+  // private highlightLayer?: HighlightLayer;
+  // private velocity = new Vector3(0, -9.8, 0);
+
+  private moveDirection = new Vector3(0, 0, 0);
+  private velocity = new Vector3(0, 0, 0);
+
+  private readonly baseImpulseStrength = GRAVITY * 10;
+  private impulseStrength = this.baseImpulseStrength;
+  private readonly jumpImpulse = GRAVITY * 250; // Adjust this value to match your desired jump height
+  private readonly stepImpulse = GRAVITY * 400;
+
   private isMoving = false;
   private inputMap: InputMap = {};
   public meshContent!: AssetContainer;
+
+  // private momentum = new Vector3(0, 0, 0);
 
   hitBoxHeight = 3.6;
   hitBoxRadius = 0.5;
@@ -58,13 +73,16 @@ class PlayerController {
   // to check if the player is on the air
   private inAirState = {
     startHeight: 0, // starting height of the jump
-    limit: 4, // maximum height of a jump
+    limit: 3, // maximum height of a jump
     jump: false,
     fall: false,
     hasTask: false, // Is there is a task to jump
     // startedAtTime: 0, // time when the jump started (for limit)
   };
 
+  private runningState = {
+    isRunning: false,
+  };
   // to climb a step in front of the player
   // private stepRay!: Ray;
   // private onStepRaycast = new PhysicsRaycastResult();
@@ -169,7 +187,7 @@ class PlayerController {
 
     // Set the priority of the animations to idle
     animationGroups.forEach((item, index) => {
-      console.log("anim", item.name);
+      // console.log("anim", item.name);
       item.play(true);
       if (index === AnimationKey.Idle) {
         item.setWeightForAllAnimatables(1);
@@ -227,16 +245,15 @@ class PlayerController {
   public async setPlayerPhysics() {
     const mesheRoot: AbstractMesh = this.heroMeshes[0];
     const player: Mesh = this.player;
-    // Enable collision detection for the player mesh
     player.checkCollisions = true;
 
-    // Create a physics aggregate for the player (used for physical simulations like collisions)
+    // physics aggregate for the player
     const aggregate = new PhysicsAggregate(
       player, // The mesh to apply the physics to
       PhysicsShapeType.CAPSULE, // Use capsule shape for physics
       {
-        mass: 70, // player weights 70kg
-        friction: 0.5,
+        mass: 55, // player weights 15kg
+        friction: 1,
         restitution: 0,
       },
       this.scene
@@ -253,6 +270,11 @@ class PlayerController {
       inertia: new Vector3(0, 0, 0),
     });
 
+    // Add linear damping to prevent excessive sliding and momentum buildup
+    // aggregate.body.setLinearDamping(3.9);
+    aggregate.body.setLinearDamping(4.9);
+    aggregate.body.setAngularDamping(1.9);
+
     // Enable collision callback (for when the player collides with other objects)
     aggregate.body.setCollisionCallbackEnabled(true);
 
@@ -264,10 +286,10 @@ class PlayerController {
 
     // Create and attach 4 rays for step up detection
     const vectors = [
-      new Vector3(0, -this.hitBoxHeight / 2 + 0.6, this.hitBoxRadius + 0.35),
-      new Vector3(0, -this.hitBoxHeight / 2 + 0.6, -this.hitBoxRadius - 0.35),
-      new Vector3(-this.hitBoxRadius - 0.35, -this.hitBoxHeight / 2 + 0.6, 0),
-      new Vector3(this.hitBoxRadius + 0.35, -this.hitBoxHeight / 2 + 0.6, 0),
+      new Vector3(0, -this.hitBoxHeight / 2 + 0.6, this.hitBoxRadius + 0.1),
+      new Vector3(0, -this.hitBoxHeight / 2 + 1.6, -this.hitBoxRadius - 0.1),
+      new Vector3(-this.hitBoxRadius - 0.1, -this.hitBoxHeight / 2 + 0.6, 0),
+      new Vector3(this.hitBoxRadius + 0.1, -this.hitBoxHeight / 2 + 0.6, 0),
     ];
 
     for (let i = 0; i < 4; i++) {
@@ -325,7 +347,6 @@ class PlayerController {
   }
 
   private setPlayerSounds() {
-    // WE SHOULD PROBABLY USE ASYNC HERE
     this.sounds = {
       walking: new Sound(
         "wallking_sound",
@@ -389,7 +410,7 @@ class PlayerController {
       if (!this.inAirState.hasTask) {
         console.log("Not in this air and not moving ");
         this.onAnimWeight(AnimationKey.Idle);
-        this.velocity.y = -GRAVITY; // apply gravity
+        // this.velocity.y = -GRAVITY; // apply gravity
       } else {
         // check if ground raycast detects the ground
         if (this.onGroundRaycast.hasHit) {
@@ -397,7 +418,7 @@ class PlayerController {
           this.inAirState.hasTask = false;
           this.inAirState.jump = false;
           this.inAirState.fall = false;
-          this.velocity.y = -GRAVITY;
+          // this.velocity.y = -GRAVITY;
           this.isMoving = true; // to see if this unbloc the player (apparently yes we are not stuck under objects anymore)
           this.onAnimWeight(AnimationKey.Idle);
         }
@@ -408,10 +429,14 @@ class PlayerController {
         console.log("Not on step and not moving ...");
         this.onStepState.task = false;
         // this.speed = 1;
-        this.velocity.y = -GRAVITY; // apply gravity
+        // this.velocity.y = -GRAVITY; // apply gravity
       }
-      this.velocity.x = 0;
-      this.velocity.z = 0;
+      // this.velocity.x = 0;
+      // this.velocity.z = 0;
+    }
+
+    if (!this.inputMap[this.playerKeys.running]) {
+      this.runningState.isRunning = false;
     }
   }
 
@@ -469,6 +494,53 @@ class PlayerController {
 
   private onCollision = (event: IPhysicsCollisionEvent) => {
     // console.log("onCollision", event);
+
+    // if (this.debug) {
+    //   // Get the collided mesh from the physics body
+    //   const collidedMesh = event?.collidedAgainst?.transformNode as Mesh;
+
+    //   if (collidedMesh) {
+    //     console.log("Collision with", collidedMesh.name);
+
+    //     // Create a highlight layer if it doesn't exist
+    //     if (!this.highlightLayer) {
+    //       this.highlightLayer = new HighlightLayer(
+    //         "highlightLayer",
+    //         this.scene
+    //       );
+    //     }
+
+    //     // Add the mesh to the highlight layer (red overlay)
+    //     this.highlightLayer.addMesh(collidedMesh, Color3.Red());
+
+    //     // Remove the highlight effect after 1 second
+    //     setTimeout(() => {
+    //       this.highlightLayer?.removeMesh(collidedMesh);
+    //     }, 1000);
+    //   }
+    // }
+
+    // Show the edges of the collided mesh for debugging
+    if (this.debug) {
+      // Get the collided mesh from the physics body
+      const collidedMesh = event?.collidedAgainst?.transformNode as Mesh;
+
+      if (collidedMesh) {
+        // console.log("Collision with", collidedMesh.name);
+
+        // Create an EdgesRenderer on the collided mesh
+        const edgesRenderer = collidedMesh.enableEdgesRendering();
+
+        edgesRenderer.edgesColor = new Color4(1, 0, 0, 1);
+        collidedMesh.edgesWidth = 4.0;
+
+        // disable edges after 1 second
+        setTimeout(() => {
+          collidedMesh.disableEdgesRendering();
+        }, 1000);
+      }
+    }
+
     // console.log("collision - player position", this.player.position);
     // console.log("collision point", event?.point);
     if (
@@ -482,8 +554,23 @@ class PlayerController {
       this.inAirState.hasTask = false;
       this.inAirState.jump = false;
       this.inAirState.fall = true; // now falling
-      this.velocity.y = -GRAVITY; // reset the velocity to gravity
+      // this.velocity.y = -GRAVITY; // reset the velocity to gravity
+      this.moveDirection.y = -this.jumpImpulse / 1.25; // apply jump impulse
     }
+
+    // if the player lands on an object => stop falling
+    // if (
+    //   event.type === PhysicsEventType.COLLISION_STARTED && // collision started
+    //   this.inAirState.fall //&& // player is falling
+    //   // (event?.point?._y || event?.point?.y || 0) <
+    //   //   this.player.position.y - this.hitBoxHeight / 2 // collision point is below the player
+    // ) {
+    //   console.log("landed on an object");
+    //   this.inAirState.fall = false;
+    //   this.inAirState.hasTask = false;
+    //   this.inAirState.jump = false;
+    //   // this.velocity.y = 0; // stop falling
+    // }
   };
 
   private checkStepCollision(): [
@@ -502,6 +589,8 @@ class PlayerController {
   }
 
   private movePlayer(delta: number) {
+    // Reset movement direction each frame
+
     // Check if the player is on a staircase and not jumping, and if the player is below the staircase height
     if (
       this.onStepState.task && // supposed near a step
@@ -511,35 +600,54 @@ class PlayerController {
         this.onStepState.height &&
       this.isMoving
     ) {
-      this.velocity.y = GRAVITY; // apply upward force in order to climb the step
+      // this.velocity.y = GRAVITY; // apply upward force in order to climb the step
+      // this.moveDirection.y = this.gravityImpulse;
+      this.moveDirection.y = this.stepImpulse;
     }
 
     // If the player has reached the top of the step=>stop the upward motion
     if (
-      this.velocity.y && // moving upward
+      // this.velocity.y && // moving upward
       this.onStepState.task && // on the step
       !(this.checkStepCollision().length > 0) && // no step collision detected from the raycast
       this.player.position.y - this.hitBoxHeight / 2 >=
         this.onStepState.height && // passed the step
       !this.inAirState.jump // Not already jumping (to avoid conflict with jump new adjustment)
     ) {
-      this.velocity.y = -GRAVITY;
+      // this.velocity.y = 0;
       this.onStepState.task = false; // no longer on a step
     }
 
+    if (!this.inAirState.jump && !this.onGroundRaycast.hasHit) {
+      // this.velocity.y = -GRAVITY; // apply gravity
+      this.moveDirection.y = -this.jumpImpulse / 1.25; /// 2;
+    }
+
+    // // if raycast detects the ground and jump is active => stop the jump
+    // if (this.onGroundRaycast.hasHit && this.inAirState.jump) {
+    //   console.log("on the ground and jump active => stop the jump");
+    //   this.inAirState.jump = false;
+    //   this.inAirState.hasTask = false;
+    //   // this.velocity.y = -GRAVITY; // Apply gravity
+    //   this.moveDirection.y = -this.jumpImpulse; // Apply gravity
+    // }
+
     // Check if the player is jumping but isn't off the ground yet
+    // Check if the player is jumping
     if (
-      this.inAirState.jump && //jumping
-      !this.inAirState.hasTask && // no jump task yet
-      this.onGroundRaycast.hasHit // if foot raycast detects that the player is on a ground
+      this.inAirState.jump //&& //jumping
+      // !this.inAirState.hasTask && // no jump task yet
+      // this.onGroundRaycast.hasHit // if foot raycast detects that the player is on a ground
     ) {
-      console.log(
-        "player is jumping but not off the ground yet : starting jump by applying upward force"
-      );
+      // console.log(
+      //   "player is jumping but not off the ground yet : starting jump by applying upward force"
+      // );
       console.log(this.inAirState);
       this.inAirState.hasTask = true; // flag started to jump
       // this.inAirState.startedAtTime = Date.now(); // record the time the jump started
-      this.velocity.y = GRAVITY; // Apply upward force
+      // this.velocity.y = GRAVITY; // Apply upward force
+      this.moveDirection.y = this.jumpImpulse; //* 10; // Apply upward jump impulse force
+      // console.log(this.moveDirection, "after jump impulse");
     }
 
     // If the player is not on the ground and has exceeded the jump height limit => start falling
@@ -552,19 +660,68 @@ class PlayerController {
       console.log("jump limit reache => start falling");
       this.inAirState.jump = false; // end the jump
       this.inAirState.fall = true; // mark as falling
-      this.velocity.y = -GRAVITY; // Apply gravity to fall
+      // this.velocity.y = -GRAVITY; // Apply gravity to fall
+      this.moveDirection.y = -this.jumpImpulse / 1.25; /// 2; // "to fall faster than gravity"
     }
 
+    // if the player is falling and the foot raycast doesn't detect any ground => apply gravity
+    if (
+      !this.onGroundRaycast.hasHit &&
+      this.inAirState.fall &&
+      !this.inAirState.jump
+    ) {
+      // console.log("falling and no ground detected => apply gravity");
+      // this.velocity.y = -GRAVITY; // Apply gravity to fall
+      // console.log("falling and no ground detected");
+      this.moveDirection.y = -this.jumpImpulse / 1.25; /// 2; // "To fall faster than gravity"
+    }
+
+    // check if the player is on the ground or on an object and stop the velocity // THIS BREAK EVERYTHING WHAN ON A SLOPE DOESN4T
+    // if (
+    //   this.onGroundRaycast.hasHit &&
+    //   // (!hitStepRays || hitStepRays.length === 0) && // not on a step
+    //   !this.inAirState.jump &&
+    //   !this.inAirState.fall &&
+    //   !this.onStepState.task
+    // ) {
+    //   this.velocity.y = 0; // Stop downward movement since the player is on smtg
+    // }
+
     //if is moving and is not jumping
-    if (this.isMoving && !this.inAirState.jump) {
+    // if (this.isMoving && !this.inAirState.jump) {
+    //if is moving
+    if (this.isMoving) {
       const dir = this.lookAtBox(); // get direction player is facing
       // adjust movment based on dir and delta time
-      let dd_x = dir.x * delta * this.speed;
-      let dd_z = dir.z * delta * this.speed;
+      // let dd_x = dir.x * delta * this.speed;
+      // let dd_z = dir.z * delta * this.speed;
+      let moveX = dir.x * this.impulseStrength * delta * this.speed;
+      let moveZ = dir.z * this.impulseStrength * delta * this.speed;
+
+      // Reduce movement during jumps and falls
+      if (this.inAirState.jump || this.inAirState.fall) {
+        moveX *= 0.75;
+        moveZ *= 0.75;
+      }
+
+      // NO need to adjust because the player
+      // // if moving in diagonal => adjust the speed by sqrt(2)
+      // if (
+      //   (this.playerDirection === PlayerDirection.LeftForward ||
+      //     this.playerDirection === PlayerDirection.RightForward ||
+      //     this.playerDirection === PlayerDirection.RightBackward ||
+      //     this.playerDirection === PlayerDirection.LeftBackward) &&
+      //   this.isMoving
+      // ) {
+      //   dd_x /= Math.sqrt(2);
+      //   dd_z /= Math.sqrt(2);
+      // }
 
       // apply the movement to the player
-      this.velocity.x = dd_x;
-      this.velocity.z = dd_z;
+      // this.velocity.x = dd_x;
+      // this.velocity.z = dd_z;
+      this.moveDirection.x = moveX;
+      this.moveDirection.z = moveZ;
 
       // if the walking sound is not playing => play it
       if (!this.sounds.walking.isPlaying) {
@@ -572,24 +729,60 @@ class PlayerController {
       }
     } else {
       // probably not doing anything => stop moving
-      this.velocity.x = 0;
-      this.velocity.z = 0;
+      // this.velocity.x = 0;
+      // this.velocity.z = 0;
+      this.moveDirection.x = 0;
+      this.moveDirection.z = 0;
+
+      // TO REMOVE ?
+      // if (
+      //   this.onGroundRaycast.hasHit &&
+      //   !this.inAirState.jump &&
+      //   !this.inAirState.fall &&
+      //   !this.onStepState.task
+      // ) {
+      //   if (this.aggregatePlayer?.body) {
+      //     const currentVelocity = this.aggregatePlayer.body.getLinearVelocity();
+      //     // Keep vertical velocity but zero out horizontal
+      //     this.aggregatePlayer.body.setLinearVelocity(
+      //       new Vector3(0, currentVelocity.y, 0)
+      //     );
+      //   }
+      // }
     }
 
     // move the player based on the velocity
-    this.player?.physicsBody?.setLinearVelocity(this.velocity);
+    // this.player?.physicsBody?.setLinearVelocity(this.velocity);
+    // Apply impulses instead of directly setting velocity
+    // console.log("moveDirection", this.moveDirection);
+    if (this.player?.physicsBody) {
+      this.player.physicsBody.applyImpulse(
+        this.moveDirection,
+        this.player.getAbsolutePosition()
+      );
+    }
+
+    if (this.velocity.y) {
+      // console.log("velocity", this.velocity);
+
+      // Apply the velocity to the player
+      this.player?.physicsBody?.setLinearVelocity(this.velocity);
+    }
+
+    this.moveDirection.setAll(0);
   }
 
   updatePlayer(deltaTime: number): void {
     // Ensure that the scene and player are available
     if (!this.scene || !this.player) return;
 
+    // ensure laying anim is playing if the player is sleeping
     if (this.isInSleep && !this.isWakingUp) {
-      // ensure laying anim is playing
       this.onAnimWeight(AnimationKey.Laying);
       return;
     }
 
+    // if the player is waking up => play the standing up animation
     if (this.isWakingUp) {
       this.onAnimWeight(AnimationKey.StandingUp);
       this.isWakingUp = false;
@@ -637,37 +830,8 @@ class PlayerController {
       });
     }
 
-    // Check movement direction based on key inputs
-    if (this.inputMap[this.playerKeys.up])
-      this.playerDirection = PlayerDirection.Forward;
-    if (this.inputMap[this.playerKeys.down])
-      this.playerDirection = PlayerDirection.Backward;
-    if (this.inputMap[this.playerKeys.right])
-      this.playerDirection = PlayerDirection.Right;
-    if (this.inputMap[this.playerKeys.left])
-      this.playerDirection = PlayerDirection.Left;
-
-    // Handle diagonal movement
-    if (
-      this.inputMap[this.playerKeys.up] &&
-      this.inputMap[this.playerKeys.right]
-    )
-      this.playerDirection = PlayerDirection.RightForward;
-    if (
-      this.inputMap[this.playerKeys.up] &&
-      this.inputMap[this.playerKeys.left]
-    )
-      this.playerDirection = PlayerDirection.LeftForward;
-    if (
-      this.inputMap[this.playerKeys.down] &&
-      this.inputMap[this.playerKeys.right]
-    )
-      this.playerDirection = PlayerDirection.RightBackward;
-    if (
-      this.inputMap[this.playerKeys.down] &&
-      this.inputMap[this.playerKeys.left]
-    )
-      this.playerDirection = PlayerDirection.LeftBackward;
+    // check if player is moving based on inputMap and update playerDirection
+    this.checkMovementKeys();
 
     // If any movement keys are pressed => set the moving state and play the running animation
     if (
@@ -677,6 +841,15 @@ class PlayerController {
       this.inputMap[this.playerKeys.right]
     ) {
       this.isMoving = true;
+
+      //if running pressed
+      if (this.inputMap[this.playerKeys.running]) {
+        this.runningState.isRunning = true;
+        this.impulseStrength = this.baseImpulseStrength * 1.5;
+      } else {
+        this.runningState.isRunning = false;
+        this.impulseStrength = this.baseImpulseStrength;
+      }
 
       // If not jumping and on the ground => play the running animation
       if (!this.inAirState.jump && this.onGroundRaycast.hasHit) {
@@ -690,9 +863,16 @@ class PlayerController {
       }
     } else {
       // If no movement keys are pressed, stop the player
+
       this.isMoving = false;
-      this.velocity.x = 0;
-      this.velocity.z = 0;
+
+      this.impulseStrength = this.baseImpulseStrength;
+      // decrease the velocity by half
+      // decrease the velocity by half
+      // this.velocity.x /= 2;
+      // this.velocity.z /= 2;
+      // this.velocity.x = 0;
+      // this.velocity.z = 0;
       this.sounds.walking.pause();
     }
 
@@ -707,8 +887,9 @@ class PlayerController {
       console.log("jump");
       this.inAirState.jump = true;
       this.inAirState.startHeight = this.player.position.y; // record the height from which the jump starts (for limit)
-      this.velocity.y = GRAVITY; // Apply upward force
+      // this.velocity.y = GRAVITY; // Apply upward force
       this.onAnimWeight(AnimationKey.Falling); // Start the jump animation (to change to Jumping we will se but for the moment the anim is not right )
+      // see if we keep the anim here
     }
 
     // Handle end of falling when the player hits the ground
@@ -720,7 +901,8 @@ class PlayerController {
       console.log("just landed");
       this.inAirState.fall = false;
       this.inAirState.hasTask = false; // Reset jump task
-      this.velocity.y = -GRAVITY; // Apply gravity
+      this.onStepState.task = false; // Reset step task TO TRY????????????????????????????????????????????????????????????????????????????????????,
+      // this.velocity.y = -GRAVITY; // Apply gravity
       if (this.isMoving) {
         this.onAnimWeight(AnimationKey.Running);
       } else {
@@ -737,12 +919,15 @@ class PlayerController {
     ) {
       console.log("space key released & not in air anymore");
       this.inAirState.hasTask = false; // clear the jump task
-      this.velocity.y = -GRAVITY; // Apply gravity
+      // this.velocity.y = -GRAVITY; // Apply gravity
     }
 
     // if the player is not jumping and is falling (no ground detected)
     if (!this.inAirState.jump && !this.onGroundRaycast.hasHit) {
-      console.log("free fall");
+      // console.log("free fall");
+      this.inAirState.fall = true; // mark as falling
+      this.inAirState.jump = false; // end jump
+      // this.velocity.y = -GRAVITY; // Apply gravity
       // this.onAnimWeight(AnimationKey.Idle);
       this.onAnimWeight(AnimationKey.Falling);
     }
@@ -896,6 +1081,40 @@ class PlayerController {
     // } else {
     //   console.warn("StandingUp animation not found.");
     // }
+  }
+
+  checkMovementKeys() {
+    // Check movement direction based on key inputs
+    if (this.inputMap[this.playerKeys.up])
+      this.playerDirection = PlayerDirection.Forward;
+    if (this.inputMap[this.playerKeys.down])
+      this.playerDirection = PlayerDirection.Backward;
+    if (this.inputMap[this.playerKeys.right])
+      this.playerDirection = PlayerDirection.Right;
+    if (this.inputMap[this.playerKeys.left])
+      this.playerDirection = PlayerDirection.Left;
+
+    // Handle diagonal movement
+    if (
+      this.inputMap[this.playerKeys.up] &&
+      this.inputMap[this.playerKeys.right]
+    )
+      this.playerDirection = PlayerDirection.RightForward;
+    if (
+      this.inputMap[this.playerKeys.up] &&
+      this.inputMap[this.playerKeys.left]
+    )
+      this.playerDirection = PlayerDirection.LeftForward;
+    if (
+      this.inputMap[this.playerKeys.down] &&
+      this.inputMap[this.playerKeys.right]
+    )
+      this.playerDirection = PlayerDirection.RightBackward;
+    if (
+      this.inputMap[this.playerKeys.down] &&
+      this.inputMap[this.playerKeys.left]
+    )
+      this.playerDirection = PlayerDirection.LeftBackward;
   }
 }
 

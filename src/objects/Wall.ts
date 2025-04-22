@@ -8,7 +8,7 @@ import {
   Mesh,
 } from "@babylonjs/core";
 import { GameObject } from "./GameObject";
-import { Environment as GameEnvironment } from "../Environnement";
+import { GameEnvironment as GameEnvironment } from "../GameEnvironnement";
 
 class Wall extends GameObject {
   wall!: Mesh;

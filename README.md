@@ -102,3 +102,7 @@ The game will draw inspiration from various games, aiming to combine elements fr
 - [SummerFestival Babylon Tutorial](https://github.com/BabylonJS/SummerFestival/tree/master)
 - [ergoudan by armomu (strongly inspired/implemented from this project)](https://github.com/armomu/ergoudan)
 - [Michel Buffa's 3D Game Programming Course](https://docs.google.com/document/d/1hz8XFVFsj3zmcZkPJtI93EMHgW-ZSAMDa_wtJnu9yN0/edit?tab=t.0#heading=h.c2d36nnahppc)
+
+
+## SUBMISSION
+[Readme Submission](./README_SUBMISSION.MD)
