@@ -8,7 +8,7 @@ import {
   Vector3,
 } from "@babylonjs/core";
 import { getRandomColor, getRandomColorMaterial } from "../utils";
-import { Environment as GameEnvironment } from "../Environnement";
+import { GameEnvironment as GameEnvironment } from "../GameEnvironnement";
 import { addPhysicsAggregate } from "../App";
 
 class GameObject {
@@ -109,13 +109,13 @@ class GameObject {
       this.scene,
       this.obj,
       PhysicsShapeType.BOX,
-      5, // 5kg
-      0.5, // a bit of friction when colliding
-      0.8 // bouncy
+      5,
+      0.5,
+      0.8
     );
 
     // add shadow
-    // this.environment.addShadowsToMesh(this.obj); // SHADOW BUGS
+    this.environment.addShadowsToMesh(this.obj); // SHADOW BUGS
     //   this.environment.bisShadowGenerators.addShadowCaster(obj); // TO RESOLVE WHY SHADOWS ARE LAGGING
   }
 

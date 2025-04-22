@@ -4,27 +4,23 @@ import "@babylonjs/inspector";
 import "@babylonjs/loaders/glTF";
 // import HavokPhysics from "@babylonjs/havok";
 import HavokPlugin from "@babylonjs/havok";
-import {
-  Environment as GameEnvironment,
-  MyEnvObjsToAddPhysics,
-} from "./Environnement";
+import { GameEnvironment } from "./GameEnvironnement";
 import {
   AdvancedDynamicTexture,
-  StackPanel,
   Button,
   TextBlock,
   Control,
 } from "@babylonjs/gui";
 import PlayerController from "./thirdPersonController";
 import { Level } from "./level/Level";
-// import { hideLoading } from ".";
+import MainMenu from "./MainMenu";
+import LevelCreator from "./levelCreator/levelCreator";
 
-// enum State {
-//   START = 0,
-//   GAME = 1,
-//   LOSE = 2,
-//   CUTSCENE = 3,
-// }
+enum GameState {
+  MENU = 0,
+  PLAY = 1,
+  LEVEL_CREATOR = 2,
+}
 
 export const GRAVITY = 9.81;
 
@@ -32,7 +28,8 @@ class App {
   private canvas!: HTMLCanvasElement;
   private engine!: BABYLON.Engine;
   private scene: BABYLON.Scene | null = null;
-  // private state: State = State.START;
+  private gameState: GameState = GameState.MENU;
+
   havokPlugin: any;
   physicsPlugin: any;
   physicsViewer: any;
@@ -75,21 +72,69 @@ class App {
   }
 
   private async initialize(canvasId: string) {
-    await this.loadHavokPlugin(); // Ensure physics plugin is loaded before anything else
+    await this.loadHavokPlugin(); // loading havok before anything else
+
     this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
     this.engine = new BABYLON.Engine(this.canvas, true);
 
-    // this.changeState(State.START);
-    this.createGameScene().then((scene) => {
-      this.scene = scene;
-      this.engine.runRenderLoop(() => {
-        scene.render();
-      });
+    // Display the main menu
+    this.displayMainMenu();
+  }
+
+  private displayMainMenu(): void {
+    const mainMenu = new MainMenu(
+      this.canvas,
+      this.engine,
+      async () => {
+        await this.startGame();
+      },
+      async () => {
+        await this.startLevelCreator();
+      }
+    );
+
+    mainMenu.render();
+  }
+
+  private async startGame(): Promise<void> {
+    // Set game state
+    this.gameState = GameState.PLAY;
+
+    // Reset the scene
+    if (this.scene) {
+      this.scene.dispose();
+    }
+
+    // Create the game scene
+    this.scene = await this.createGameScene();
+
+    // Set up render loop for the game scene
+    this.engine.runRenderLoop(() => {
+      if (this.scene) {
+        this.scene.render();
+      }
     });
+  }
+
+  private async startLevelCreator(): Promise<void> {
+    if (this.scene) this.scene.dispose();
+
+    // Set game state
+    this.gameState = GameState.LEVEL_CREATOR;
+
+    const lvlCreator = new LevelCreator(this.canvas, this.engine, async () => {
+      await this.initialize(this.canvas.id);
+    });
+
+    lvlCreator.render();
   }
 
   private async createGameScene(): Promise<BABYLON.Scene> {
     const scene = new BABYLON.Scene(this.engine);
+
+    // initialize the AssetsManager
+    this.initializeAssetsManager(scene);
+
     this._setupPhysics(scene);
 
     // Set up environment using the Environment class
@@ -97,46 +142,29 @@ class App {
 
     const thridPers = true; // false for first person, true for third person
     environment.setupGameEnvironment(thridPers);
-    environment.objectsToAddPhysics.forEach((obj) => {
-      addPhysicsAggregate(
-        scene,
-        obj.mesh,
-        obj.physicsShapeType,
-        obj.mass,
-        obj.friction,
-        obj.restitution
-      );
-    });
+
+    // environment.objectsToAddPhysics.forEach((obj) => {
+    //   addPhysicsAggregate(
+    //     scene,
+    //     obj.mesh,
+    //     obj.physicsShapeType,
+    //     obj.mass,
+    //     obj.friction,
+    //     obj.restitution
+    //   );
+    // });
 
     // Create the player
     const char = new PlayerController(scene, environment, thridPers);
+    this.char = char;
 
-    const level = new Level(scene, environment);
+    const level = new Level(scene, environment, this.assetsManager);
 
     this.createButton(environment, char, level);
     await level.initLevel();
+    console.log("assetsManager after level creation : ", this.assetsManager);
 
     this.canvas.style.opacity = "1";
-    // hideLoading();
-
-    // console.log("DEBUG: ");
-    // // Render loop
-    // scene.onBeforeRenderObservable.add(() => {
-    //   // console.log("Rendering game scene...");
-    //   // Update player movement and physics
-    //   // player.update(this.keyMap, deltaTime);
-    // });
-
-    // Create and initialize the player
-    // const character = new Character(scene);
-
-    // scene.onBeforeRenderObservable.add(() => {
-    //   character.move(inputMap);
-    //   character.update();
-    // });
-
-    // Load the player
-    // this.loadPlayer(scene, environment);
 
     scene.onBeforeRenderObservable.add(() => {
       environment.updateFps(this.engine.getFps());
@@ -146,17 +174,17 @@ class App {
     });
     scene.onBeforeAnimationsObservable.add(() => {
       char.onBeforeAnimations();
-      // console.log("Before Animations");
     });
+
+    this.assetsManager.load();
 
     return scene;
   }
 
   // @ts-ignore
   createButton(env: GameEnvironment, char: PlayerController, level: Level) {
-    // console.log("CREATING BTN ");
     // Create an advanced dynamic texture (UI Layer)
-    const advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI("UI");
+    const advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI("GameUI");
 
     // Create a button
     const button = Button.CreateSimpleButton("btn", "Play (press P)");
@@ -166,6 +194,28 @@ class App {
     button.background = "orange"; // Button background color
     button.cornerRadius = 10; // Rounded corners
     button.fontSize = 20; // Text size
+
+    // Add "Back to Menu" button
+    const menuButton = Button.CreateSimpleButton("menuBtn", "Menu");
+    menuButton.width = "100px";
+    menuButton.height = "40px";
+    menuButton.color = "white";
+    menuButton.background = "orange";
+    menuButton.cornerRadius = 5;
+    menuButton.fontSize = 16;
+    menuButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    menuButton.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    menuButton.left = "20px";
+    menuButton.top = "20px";
+
+    menuButton.onPointerClickObservable.add(() => {
+      if (this.scene) {
+        this.scene.dispose();
+      }
+      this.initialize(this.canvas.id);
+    });
+
+    advancedTexture.addControl(menuButton);
 
     let pKeyListener = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() === "p") {
@@ -221,6 +271,43 @@ class App {
   }
 
   ////////////////////////
+  private assetsManager!: BABYLON.AssetsManager;
+
+  private initializeAssetsManager(scene: BABYLON.Scene): BABYLON.AssetsManager {
+    console.log("Initializing assets manager...");
+    this.assetsManager = new BABYLON.AssetsManager(scene);
+    console.log("Assets manager initialized: ", this.assetsManager);
+    this.assetsManager.onProgress = (
+      remainingCount,
+      totalCount,
+      lastFinishedTask
+    ) => {
+      console.log(
+        "Loading assets: ",
+        remainingCount,
+        " out of ",
+        totalCount,
+        " items still need to be loaded."
+      );
+
+      this.engine.loadingUIText =
+        "Loading the scene... " +
+        remainingCount +
+        " out of " +
+        totalCount +
+        " items still need to be loaded.";
+    };
+
+    //put the text at the bottom of the screen
+    this.engine.loadingScreen.loadingUIBackgroundColor = "orange";
+
+    this.assetsManager.onFinish = (tasks) => {
+      console.log("All assets loaded: ", tasks);
+      // this.hideLoading();
+    };
+
+    return this.assetsManager;
+  }
 }
 
 function getLinearDamping(mass: number, friction: number): number {
@@ -250,5 +337,41 @@ export function addPhysicsAggregate(
 
   return physicsAggregate;
 }
+
+export const addItem = (
+  assetsManager: BABYLON.AssetsManager,
+  rootUrl: string,
+  model: string,
+  id: string,
+  onSuccess: any = null,
+  onError: any = null
+) => {
+  if (!rootUrl || !model) {
+    console.error("No asset provided -> not adding it to the scene.");
+    return false;
+  }
+
+  console.log(
+    "Adding the following item to asset manager: ",
+    id,
+    rootUrl,
+    model
+  );
+
+  const meshTask = assetsManager.addMeshTask(id, "", rootUrl, model);
+
+  // Pass in custom function to call after asset loads
+  meshTask.onSuccess = onSuccess;
+
+  // On error, just get rid of any problematic meshes
+  meshTask.onError = (task) => {
+    if (task.loadedMeshes && task.loadedMeshes.length > 0) {
+      task.loadedMeshes.forEach((mesh) => {
+        mesh.dispose();
+      });
+    }
+  };
+  return meshTask;
+};
 
 export default App;

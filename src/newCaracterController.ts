@@ -1,4 +1,4 @@
-import { Environment as GameEnvironment } from "./Environnement";
+import { GameEnvironment as GameEnvironment } from "./GameEnvironnement";
 import {
   AbstractMesh,
   ActionManager,

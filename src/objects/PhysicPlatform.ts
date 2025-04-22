@@ -8,9 +8,9 @@ import {
   StandardMaterial,
 } from "@babylonjs/core";
 import {
-  Environment as GameEnvironment,
+  GameEnvironment as GameEnvironment,
   MyEnvObjsToAddPhysics,
-} from "../Environnement";
+} from "../GameEnvironnement";
 import { addPhysicsAggregate } from "../App";
 import { GameObject } from "./GameObject";
 

@@ -194,6 +194,8 @@ class LevelGenerator {
         undefined,
         true
       );
+
+      
       // Add the random objects to the level objects
       this.generatedLevelObjects.push(obj);
     }

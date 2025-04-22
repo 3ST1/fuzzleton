@@ -39,17 +39,16 @@ export type MyEnvObjsToAddPhysics = {
   restitution: number;
 };
 
-export class Environment {
+export class GameEnvironment {
   private scene: Scene;
   private canvas: HTMLCanvasElement;
   camera!: ArcRotateCamera;
   light!: DirectionalLight;
   shadowGenerator!: ShadowGenerator;
   ground: any;
-  previousCameraCollisionUpdate: number = 0;
 
   //   public camera: FreeCamera;
-  objectsToAddPhysics: MyEnvObjsToAddPhysics[] = [];
+  // objectsToAddPhysics: MyEnvObjsToAddPhysics[] = [];
   skybox!: Mesh;
   hemiLight!: HemisphericLight;
   // shadowGenerator: any;
@@ -87,35 +86,56 @@ export class Environment {
       // this.camera.wheelPrecision = 0;
       // this.camera.attachControl(canvas, false);
 
-      // this.camera.checkCollisions = true; // FIND A WAY TO NOT LAG when a lot of objects are in the scene
-      // this.scene.collisionsEnabled = true;
-      // this.camera.checkCollisions = true; // FIND A WAY TO NOT LAG
+      this.camera.checkCollisions = true; // FIND A WAY TO NOT LAG when a lot of objects are in the scene
+      // ->  PROBABLY DO A RAYCASTING TO CHECK IF THE CAMERA IS COLLIDING WITH THE GROUND
+      this.camera.onCollide = (collidedMesh) => {
+        // console.log(`Camera collided with: ${collidedMesh.name}`);
+        this.camera.position.y += 2; // to avoid going trough the ground for example and little tilt on collision
+      };
 
-      console.log("Created third person camera");
+      this.scene.registerBeforeRender(() => {
+        // check if the y position of the camera is below the ground and if it is put it back above
+        if (this.ground && this.camera) {
+          const groundHeight = this.ground.getHeightAtCoordinates(
+            this.camera.position.x,
+            this.camera.position.z
+          );
+
+          // console.log(
+          //   `camera y: ${this.camera.position.y}, ground height: ${groundHeight}`
+          // );
+          if (this.camera.position.y < groundHeight + 1) {
+            // Place the camera above the ground
+            this.camera.position.y = groundHeight + 1;
+            // console.log("camera position corrected to above ground");
+          }
+        }
+      });
+      console.log("created third person camera");
     } else {
-      // First person camera, still using ArcRotateCamera
-      this.camera = new ArcRotateCamera(
-        "arcCamera13dpers",
-        0,
-        0,
-        0, // No distance from target for first-person
-        new Vector3(0, 0, 0),
-        this.scene
-      );
-      // Positioning the camera in a first-person-like position
-      this.camera.setPosition(new Vector3(0, 0, 0)); // Slightly above ground level (camera height)
-      this.camera.lowerRadiusLimit = 0.1; // Minimal radius to simulate first-person effect
-      this.camera.upperRadiusLimit = 0.1; // To restrict the radius and prevent zooming out
+      // First person camera but still using ArcRotateCamera
+      // TO CONTINUE BUT WE DO NOT USE IT FOR THE MOMENT
+      throw console.error("1st person camera not implemented");
 
-      // Set alpha and beta to initial angles for 'looking straight ahead'
-      // this.camera.alpha = Math.PI / 2; // Start facing the positive Z direction
-      // this.camera.beta = Math.PI / 4; // Adjust beta to control vertical view angle
+      // this.camera = new ArcRotateCamera(
+      //   "arcCamera13dpers",
+      //   0,
+      //   0,
+      //   0, // No distance from target for first-person
+      //   new Vector3(0, 0, 0),
+      //   this.scene
+      // );
+      // // camera in a first person like pos
+      // this.camera.setPosition(new Vector3(0, 0, 0)); // Slightly above ground level (camera height)
+      // this.camera.lowerRadiusLimit = 0.1; // Minimal radius to simulate first-person effect
+      // this.camera.upperRadiusLimit = 0.1; // To restrict the radius and prevent zooming out
 
-      // Enable mouse controls for first-person-like movement (looking around)
-      this.camera.attachControl(canvas, true);
-      // this.camera.pinchPrecision = 0; // Disable pinch to zoom as it's not needed for first-person
+      // // this.camera.alpha = Math.PI / 2; // Start facing the positive Z direction
+      // // this.camera.beta = Math.PI / 4; // Adjust beta to control vertical view angle
 
-      console.log("Created first person camera");
+      // // Enable mouse controls for first-person-like movement (looking around)
+      // this.camera.attachControl(canvas, true);
+      // // this.camera.pinchPrecision = 0;
     }
 
     this.camera.attachControl(canvas, false);
@@ -146,7 +166,7 @@ export class Environment {
       new Vector3(0, 1, 0),
       this.scene
     );
-    this.hemiLight.intensity = 0.5;
+    this.hemiLight.intensity = 0.4;
     this.hemiLight.diffuse = new Color3(0.7, 0.5, 0.5);
     this.hemiLight.specular = new Color3(0.7, 0.5, 0.3);
     this.hemiLight.groundColor = new Color3(0.6, 0.5, 0.5);
@@ -157,10 +177,20 @@ export class Environment {
       new Vector3(-1, -1, -1),
       this.scene
     );
-    light.position = new Vector3(350, 100, 350); // Increased position for better coverage
+    light.position = new Vector3(1000, 500, 350);
     light.intensity = 0.5;
+
     light.shadowMinZ = 0;
-    light.shadowMaxZ = 1000;
+    light.shadowMaxZ = 1500;
+    // light.shadowOrthoScale = 0.2; // prevent shadow frustrum clipping, inflate the frustum
+
+    // https://forum.babylonjs.com/t/shadow-getting-clipped/43849/4
+    light.autoUpdateExtends = false;
+    // // light.shadowOrthoScale = 0.2; //prevent shadow frustrum clipping,  inflate the frustum  see https://forum.babylonjs.com/t/shadow-getting-clipped/43849
+    // light.orthoTop = 0;
+    // light.orthoBottom = 0;
+    // light.orthoLeft = 10;
+    // light.orthoRight = 1100;
 
     // var lightSphere = Mesh.CreateSphere("sphere", 10, 2, this.scene);
     // lightSphere.position = light.position;
@@ -190,13 +220,12 @@ export class Environment {
     //   0
     // );
 
-    // // Directional Light 2 (Fills the opposite side)
     var light2 = new DirectionalLight(
       "dir02",
       new Vector3(1, -1, 1),
       this.scene
     );
-    light2.position = new Vector3(-350, 100, -350);
+    light2.position = new Vector3(-1000, 100, -350);
     light2.intensity = 0.2;
     light2.shadowMinZ = 0;
     light2.shadowMaxZ = 1000;
@@ -220,13 +249,11 @@ export class Environment {
     this.shadowGenerator.mapSize = 2048;
     this.shadowGenerator.bias = 0.001;
     this.shadowGenerator.normalBias = 0.02;
-    this.shadowGenerator.useBlurExponentialShadowMap = true;
+    // this.shadowGenerator.useBlurExponentialShadowMap = false;
     this.shadowGenerator.useKernelBlur = true;
     this.shadowGenerator.blurKernel = 256;
     this.shadowGenerator.usePercentageCloserFiltering = true;
     this.shadowGenerator.filteringQuality = ShadowGenerator.QUALITY_HIGH;
-
-    // Set the shadow color (darker color)
 
     // this.bisShadowGenerator.mapSize = 512;
     // this.bisShadowGenerator.bias = 0.001;
@@ -237,7 +264,7 @@ export class Environment {
     // this.bisShadowGenerator.usePercentageCloserFiltering = true;
     // this.bisShadowGenerator.filteringQuality = ShadowGenerator.QUALITY_MEDIUM;
 
-    // Add fog for a dreamy atmosphere
+    // Adding a small abient fog
     this.scene.fogMode = Scene.FOGMODE_EXP;
     this.scene.fogDensity = 0.0009;
     this.scene.fogColor = new Color3(0.85, 0.75, 0.65);
@@ -275,11 +302,7 @@ export class Environment {
       this.scene
     );
     skyboxMaterial.reflectionTexture.coordinatesMode = Texture.SKYBOX_MODE;
-
-    // Assign material to the skybox
     skybox.material = skyboxMaterial;
-
-    // Ensure the skybox appears correctly
     skybox.infiniteDistance = true;
 
     // Set scene clear color to prevent background override
@@ -290,8 +313,8 @@ export class Environment {
 
   private _setupGround(heightMapPath: string = ""): void {
     const groundOptions = {
-      width: 1500,
-      height: 1500,
+      width: 500,
+      height: 500,
       subdivisions: 500,
       minHeight: 0,
       maxHeight: heightMapPath === "" ? 1 : 100,
@@ -358,6 +381,7 @@ export class Environment {
     this.ground = ground;
   };
 
+  // >TO REMOVE
   private async _initSphere(): Promise<void> {
     const {
       meshes: heroMeshes,
@@ -402,29 +426,28 @@ export class Environment {
       { width: 10, height: 10, depth: 10 },
       this.scene
     );
-    bigBox.position.y = 100;
-    bigBox.position.z = 100;
+    bigBox.position.y = 50;
+    bigBox.position.z = 50;
+    bigBox.position.x = 50;
     const bigBoxMaterial = new StandardMaterial("bigBoxMaterial", this.scene);
     bigBoxMaterial.diffuseColor = new Color3(0.4, 0.4, 0.4);
     bigBoxMaterial.specularColor = new Color3(0.4, 0.4, 0.4);
     bigBoxMaterial.emissiveColor = new Color3(0.4, 0.4, 0.4);
     bigBox.material = bigBoxMaterial;
 
-    this.objectsToAddPhysics.push({
-      mesh: bigBox,
-      physicsShapeType: PhysicsShapeType.BOX,
-      mass: 50000,
-      friction: 5000000,
-      restitution: 0,
-    });
+    const boxPhysicsAggregate = new PhysicsAggregate(
+      bigBox,
+      PhysicsShapeType.MESH,
+      { mass: 500000, friction: 100, restitution: 0 },
+      this.scene
+    );
   }
 
+  // PANEL FPS AND OTHER INFOS
   private advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI("UI");
-
   private fpsText = new TextBlock();
   private infosText = new TextBlock();
 
-  // FPS AND OTHER INFOS
   private setupInfosGUI(): void {
     this.fpsText.text = "";
     this.fpsText.fontSize = 13;
@@ -435,7 +458,6 @@ export class Environment {
     this.fpsText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
     this.advancedTexture.addControl(this.fpsText);
 
-    const tipsBlock = new TextBlock();
     this.infosText.text = "Press esc to cancel mouse lock";
     this.infosText.fontSize = 13;
     this.infosText.color = "white";
@@ -443,11 +465,12 @@ export class Environment {
     this.infosText.paddingBottom = 30;
     this.infosText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     this.infosText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
-    this.advancedTexture.addControl(tipsBlock);
+    this.advancedTexture.addControl(this.infosText);
   }
 
   private setupDebugGUI(): void {
     // debug info menu that is shown when this.debug is true
+    // TO DO ?
   }
 
   public updateFps(fps: number) {
@@ -468,6 +491,6 @@ export class Environment {
     this.setupInfosGUI();
     this.setupDebugGUI();
 
-    console.log("Environment Loaded!");
+    console.log("Environment loaded!");
   }
 }
