@@ -12,6 +12,9 @@ import {
   Color3,
   PhysicsMotionType,
   AssetsManager,
+  VertexData,
+  FresnelParameters,
+  Color4,
 } from "@babylonjs/core";
 import { Wall } from "../objects/Wall";
 import { GameEnvironment, MyEnvObjsToAddPhysics } from "../GameEnvironnement";
@@ -521,59 +524,111 @@ export class Level {
     );
   }
 
-  public loadPillow(color: Color3 = new Color3(1, 1, 1)): void {
-    console.log("adding pillow to assets manager");
+  // NEED TO FIX WITH A LIGHTER GLB MODEL
+  // public loadPillow(color: Color3 = new Color3(1, 1, 1)): void {
+  //   console.log("adding pillow to assets manager");
 
-    const onSuccess = (task) => {
-      const heroMeshes = task.loadedMeshes;
-      const rootNode = heroMeshes[0];
+  //   const onSuccess = (task) => {
+  //     const heroMeshes = task.loadedMeshes;
+  //     const rootNode = heroMeshes[0];
 
-      rootNode.name = "pillow";
-      rootNode.scaling = new Vector3(4, 4, 4);
-      rootNode.position = new Vector3(12, 0, 12);
+  //     rootNode.name = "pillow";
+  //     rootNode.scaling = new Vector3(4, 4, 4);
+  //     rootNode.position = new Vector3(12, 0, 12);
 
-      const childMeshes = rootNode.getChildMeshes();
+  //     const childMeshes = rootNode.getChildMeshes();
 
-      let hero;
-      if (rootNode.getTotalVertices() > 0) {
-        hero = rootNode;
-      } else {
-        hero = childMeshes.find((mesh) => mesh.getTotalVertices() > 0);
-      }
+  //     let hero;
+  //     if (rootNode.getTotalVertices() > 0) {
+  //       hero = rootNode;
+  //     } else {
+  //       hero = childMeshes.find((mesh) => mesh.getTotalVertices() > 0);
+  //     }
 
-      if (hero) {
-        hero.refreshBoundingInfo({});
-        const boundingBox = hero.getBoundingInfo().boundingBox;
-        const height = boundingBox.maximum.y - boundingBox.minimum.y;
-        rootNode.position.y += height / 1.5;
-      }
+  //     if (hero) {
+  //       hero.refreshBoundingInfo({});
+  //       const boundingBox = hero.getBoundingInfo().boundingBox;
+  //       const height = boundingBox.maximum.y - boundingBox.minimum.y;
+  //       rootNode.position.y += height / 1.5;
+  //     }
 
-      if (childMeshes.length > 0) {
-        childMeshes.forEach((m) => {
-          const material = new StandardMaterial("pillowMaterial", this.scene);
-          material.diffuseColor = color;
-          m.material = material;
+  //     if (childMeshes.length > 0) {
+  //       childMeshes.forEach((m) => {
+  //         const material = new StandardMaterial("pillowMaterial", this.scene);
+  //         material.diffuseColor = color;
+  //         m.material = material;
 
-          const physicsAggregate = new PhysicsAggregate(
-            m,
-            PhysicsShapeType.MESH,
-            { mass: 0, friction: 2, restitution: 5 },
-            this.scene
-          );
+  //         const physicsAggregate = new PhysicsAggregate(
+  //           m,
+  //           PhysicsShapeType.MESH,
+  //           { mass: 0, friction: 2, restitution: 5 },
+  //           this.scene
+  //         );
 
-          this.gameEnv.addShadowsToMesh(m as Mesh);
-          this.lvlObjs.push(m);
-        });
-      }
-    };
+  //         this.gameEnv.addShadowsToMesh(m as Mesh);
+  //         this.lvlObjs.push(m);
+  //       });
+  //     }
+  //   };
 
-    addItemToAssetManager(
-      this.assetsManager,
-      "/models/",
-      "pillow.glb",
+  //   addItemToAssetManager(
+  //     this.assetsManager,
+  //     "/models/",
+  //     "pillow.glb",
+  //     "pillow",
+  //     onSuccess
+  //   );
+  // }
+
+  public createPillowProgrammatically(
+    color: Color3 = new Color3(1, 1, 1),
+    position: Vector3 = new Vector3(12, 0, 12)
+  ): Mesh {
+    // Create the main pillow body using CreateBox with rounded corners
+    const pillow = MeshBuilder.CreateBox(
       "pillow",
-      onSuccess
+      {
+        width: 3,
+        height: 1,
+        depth: 3,
+        faceColors: [
+          new Color4(color.r, color.g, color.b, 1),
+          new Color4(color.r, color.g, color.b, 1),
+          new Color4(color.r, color.g, color.b, 1),
+          new Color4(color.r, color.g, color.b, 1),
+          new Color4(color.r, color.g, color.b, 1),
+          new Color4(color.r, color.g, color.b, 1),
+        ],
+        updatable: true,
+      },
+      this.scene
     );
+
+    pillow.position = new Vector3(position.x, position.y + 1, position.z);
+
+    const pillowMaterial = new StandardMaterial("pillowMaterial", this.scene);
+    pillowMaterial.diffuseColor = color;
+
+    pillowMaterial.specularColor = new Color3(0.2, 0.2, 0.2);
+    pillowMaterial.specularPower = 32;
+
+    pillowMaterial.diffuseFresnelParameters = new FresnelParameters();
+    pillowMaterial.diffuseFresnelParameters.bias = 0.2;
+    pillowMaterial.diffuseFresnelParameters.power = 1;
+
+    pillow.material = pillowMaterial;
+    const physicsAggregate = new PhysicsAggregate(
+      pillow,
+      PhysicsShapeType.BOX,
+      { mass: 0, friction: 2, restitution: 6 },
+      this.scene
+    );
+
+    this.gameEnv.addShadowsToMesh(pillow);
+
+    this.lvlObjs.push(pillow);
+
+    return pillow;
   }
 
   public loadSwiper(speed: number = 1): void {
@@ -751,7 +806,8 @@ export class Level {
     this.loadSpikeRoller();
     // this.loadTestMap();
     // this.loadSwiper();
-    this.loadPillow();
+    // this.loadPillow();
+    this.createPillowProgrammatically();
 
     // this.loadBoudin();
 
