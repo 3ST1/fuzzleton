@@ -160,7 +160,7 @@ class App {
     const char = new PlayerController(scene, environment, thridPers);
     this.char = char;
 
-    const level = new Level(scene, environment, this.assetsManager);
+    const level = new Level(scene, environment, this.assetsManager, char);
 
     this.createButton(environment, char, level);
     await level.initLevel(this.assetsManager);

@@ -23,6 +23,7 @@ import { Slope } from "../objects/Slope";
 import { LevelGenerator } from "./LevelGenerator";
 import { levelFromFile } from "./levelFromFile";
 import { addItemToAssetManager } from "../basicAssetManager";
+import PlayerController from "../player/thirdPersonController";
 export interface WallProp {
   x: number;
   y: number;
@@ -38,16 +39,19 @@ export class Level {
   lvlObjs: any[] = [];
   lvlGen: LevelGenerator;
   assetsManager: AssetsManager;
+  player: PlayerController;
 
   constructor(
     scene: Scene,
     environment: GameEnvironment,
-    assetsManager: AssetsManager
+    assetsManager: AssetsManager,
+    player: PlayerController
   ) {
     this.scene = scene;
     this.gameEnv = environment;
     this.lvlGen = new LevelGenerator(this.scene, this.gameEnv);
     this.assetsManager = assetsManager;
+    this.player = player;
   }
 
   public disposeLevel(): void {
@@ -230,7 +234,7 @@ export class Level {
     planeMesh.position = startPos.clone();
     planeMesh.position.y += 2; // 0.5 (base height) + 0.05 (half of plane height)
 
-    // Apply physics to the plane (dynamic)
+    // Apply physics to the plane
     const plane = new PhysicsAggregate(
       planeMesh,
       PhysicsShapeType.BOX,
@@ -252,6 +256,7 @@ export class Level {
   }
 
   async loadModels(
+    // @ts-ignore
     basePath: string,
     modelFiles: string[],
     postion = new Vector3(0, 0, 0)
@@ -765,7 +770,11 @@ export class Level {
       assetsManager.onFinish = () => resolve();
       assetsManager.load();
     });
-    const lvlFromFile = new levelFromFile(this.scene, this.gameEnv);
+    const lvlFromFile = new levelFromFile(
+      this.scene,
+      this.gameEnv,
+      this.player
+    );
 
     console.log("Level Loaded!");
   }

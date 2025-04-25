@@ -39,7 +39,7 @@ import { FurMaterial } from "@babylonjs/materials";
 class PlayerController {
   debug: boolean = false;
 
-  private player!: Mesh;
+  public player!: Mesh;
   private aggregatePlayer!: PhysicsAggregate;
   private scene!: Scene;
   private camera!: ArcRotateCamera;

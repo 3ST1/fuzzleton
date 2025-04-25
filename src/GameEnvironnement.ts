@@ -88,6 +88,7 @@ export class GameEnvironment {
 
       this.camera.checkCollisions = true; // FIND A WAY TO NOT LAG when a lot of objects are in the scene
       // ->  PROBABLY DO A RAYCASTING TO CHECK IF THE CAMERA IS COLLIDING WITH THE GROUND
+      // @ts-ignore
       this.camera.onCollide = (collidedMesh) => {
         // console.log(`Camera collided with: ${collidedMesh.name}`);
         this.camera.position.y += 2; // to avoid going trough the ground for example and little tilt on collision

@@ -18,10 +18,11 @@ import {
   PhysicsShape,
   PhysicsMaterial,
 } from "@babylonjs/core";
+// import { Debug } from "@babylonjs/inspector";
 import { AssetManagerService } from "../levelCreator/AssetManager";
 import { ObjectController } from "../levelCreator/ObjectController";
 import { GameEnvironment } from "../GameEnvironnement";
-
+import PlayerController from "../player/thirdPersonController";
 // TO TEST / DEBUG
 const meshesDocData = {
   name: "MyLevel",
@@ -73,10 +74,10 @@ const meshesDocData = {
       },
       movement: {
         enabled: true,
-        speed: 5,
+        speed: 1,
         endPosition: {
-          x: 72,
-          y: 36,
+          x: 42,
+          y: 12,
           z: 0,
         },
       },
@@ -271,14 +272,17 @@ export class levelFromFile {
   objectController!: ObjectController;
   addedAssets: any[] = [];
   gameEnv: GameEnvironment;
+  player: PlayerController;
 
   constructor(
     scene: Scene,
     gameEnv: GameEnvironment,
+    player: PlayerController,
     meshesDoc: any = meshesDocData
   ) {
     this.scene = scene;
     this.gameEnv = gameEnv;
+    this.player = player;
     this.assetManager = new AssetManagerService(scene);
     this.assetManager.initializeAssetsManager(this.scene);
     this.addNeededAssetsToTheAssetManager(meshesDoc);
@@ -384,10 +388,6 @@ export class levelFromFile {
       mesh.metadata = {};
     }
 
-    if (meshData.movement && meshData.movement.enabled) {
-      this.applyMovementData(mesh, meshData);
-    }
-
     // Apply physics data first - it may return a new merged mesh
     let activeMesh = mesh;
     const mergedMesh = this.applyPhysicsData(mesh, meshData);
@@ -400,6 +400,10 @@ export class levelFromFile {
       console.log(
         `No physics mesh created, using original: ${activeMesh.name}`
       );
+    }
+
+    if (meshData.movement && meshData.movement.enabled) {
+      this.applyMovementData(mesh, meshData);
     }
 
     // Apply rotation animation data using the correct mesh
@@ -792,10 +796,95 @@ export class levelFromFile {
       };
       shape.material = physMaterial;
 
-      if (mass > 0) {
+      if (meshData.movement && meshData.movement.enabled) {
+        console.warn("CREATING A ANIMATED MESH for mesh: ", mesh.name);
+        // Create physics body as ANIMATED type
+
         const body = new BABYLON.PhysicsBody(
           mesh,
-          BABYLON.PhysicsMotionType.DYNAMIC,
+          PhysicsMotionType.STATIC,
+          false,
+          this.scene
+        );
+        body.shape = shape;
+
+        // Store physics body in mesh metadata
+        mesh.metadata.physicsBody = body;
+
+        // Set the body to be animated
+        body.disablePreStep = false;
+        body.setMotionType(PhysicsMotionType.ANIMATED);
+        // Make the platform a "parent" of anything standing on it
+        const observer = this.scene.onBeforeRenderObservable.add(() => {
+          // Check if character is on platform - Improved version
+
+          // Get all scene meshes and check which ones are standing on this platform
+          const character = this.player.player;
+
+          // check if character is colliding with the mesh
+          if (character) {
+            // Get the character's bounding box
+            const characterBoundingBox =
+              character.getBoundingInfo().boundingBox;
+            // console.log("character bounding box : ", characterBoundingBox);
+            const charPosition = character.getAbsolutePosition();
+            // get the mesh bounding box
+            const meshBoundingBox = mesh.getBoundingInfo().boundingBox;
+            // console.log("mesh bounding box : ", meshBoundingBox);
+            const meshPosition = mesh.getAbsolutePosition();
+
+            // check if the character is colliding with the mesh its position in the meshBounding box
+            const isOnPlatform =
+              charPosition.x >= meshPosition.x - meshBoundingBox.extendSize.x &&
+              charPosition.x <= meshPosition.x + meshBoundingBox.extendSize.x &&
+              charPosition.z >= meshPosition.z - meshBoundingBox.extendSize.z &&
+              charPosition.z <= meshPosition.z + meshBoundingBox.extendSize.z &&
+              charPosition.y >= meshPosition.y - meshBoundingBox.extendSize.y &&
+              charPosition.y <= meshPosition.y + meshBoundingBox.extendSize.y;
+            // console.log("is on platform : ", isOnPlatform);
+
+            // Check if character is on platform
+            // const isOnPlatform =
+            //   Math.abs(characterBottom - platformTop) < 0.2 &&
+            //   character.position.x >=
+            //     mesh.position.x -
+            //       mesh.getBoundingInfo().boundingBox.extendSize.x &&
+            //   character.position.x <=
+            //     mesh.position.x +
+            //       mesh.getBoundingInfo().boundingBox.extendSize.x &&
+            //   character.position.z >=
+            //     mesh.position.z -
+            //       mesh.getBoundingInfo().boundingBox.extendSize.z &&
+            //   character.position.z <=
+            //     mesh.position.z +
+            //       mesh.getBoundingInfo().boundingBox.extendSize.z;
+
+            // if (isOnPlatform) {
+            //   console.log("PLayer on the moving object");
+            //   // If character is on platform but not yet parented
+            //   if (character.parent !== mesh) {
+            //     // Store original world position
+            //     const worldPos = character.getAbsolutePosition();
+
+            //     // Parent to platform
+            //     character.parent = mesh;
+
+            //     // Maintain world position (prevents "jumping")
+            //     character.position = worldPos;
+            //     character.position.subtractInPlace(mesh.position);
+            //   }
+            // } else if (character.parent === mesh) {
+            //   // If character left platform, unparent it
+            //   const worldPos = character.getAbsolutePosition();
+            //   character.parent = null;
+            //   character.position = worldPos;
+            // }
+          }
+        });
+      } else if (mass > 0) {
+        const body = new BABYLON.PhysicsBody(
+          mesh,
+          PhysicsMotionType.DYNAMIC,
           false,
           this.scene
         );
@@ -806,7 +895,7 @@ export class levelFromFile {
       } else {
         const body = new BABYLON.PhysicsBody(
           mesh,
-          BABYLON.PhysicsMotionType.STATIC,
+          PhysicsMotionType.STATIC,
           false,
           this.scene
         );

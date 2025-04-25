@@ -572,7 +572,8 @@ export class ObjectController {
 
       return pathLine;
     } catch (error) {
-      // ...existing code for fallback...
+      console.error("Error creating preview mesh:", error);
+      return null;
     }
   }
 
