@@ -34,6 +34,7 @@ export class AssetManagerService {
     this.assetsManager.onProgress = (
       remainingCount,
       totalCount,
+      // @ts-ignore
       lastFinishedTask
     ) => {
       console.log(
@@ -122,6 +123,7 @@ export class AssetManagerService {
   private createRawClone(
     container: AssetContainer,
     namePrefix: string,
+    // @ts-ignore
     scene: Scene,
     rootMesh: Mesh,
     modelId?: string
@@ -473,6 +475,7 @@ export class AssetManagerService {
   // Start loading all registered assets
   public loadAssets(onFinish?: () => void): void {
     if (onFinish) {
+      // @ts-ignore
       this.assetsManager.onFinish = (tasks) => {
         this.allAssestsLoaded = true;
         console.log(

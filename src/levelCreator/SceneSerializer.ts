@@ -62,6 +62,7 @@ interface SerializedScene {
 }
 
 export class SceneSerializer {
+  static assetManager: AssetManagerService;
   //Serializes all meshes in the scene to a JSON string
 
   public static serializeScene(
@@ -70,7 +71,7 @@ export class SceneSerializer {
     assetManager: AssetManagerService
   ): string {
     const serializedMeshes: SerializedMesh[] = [];
-
+    this.assetManager = assetManager;
     // Loop through each mesh and serialize its properties
     meshes.forEach((mesh) => {
       console.log("Serializing mesh: ", mesh.name, mesh);
@@ -299,6 +300,7 @@ export class SceneSerializer {
           resolve(content);
         };
 
+        // @ts-ignore
         reader.onerror = (e) => {
           document.body.removeChild(fileInput);
           reject(new Error("Error reading file"));

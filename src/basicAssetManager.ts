@@ -9,6 +9,7 @@ export const initializeAssetsManager = (
   console.log("Initializing assets manager...");
   const assetsManager = new AssetsManager(scene);
   console.log("Assets manager initialized: ", assetsManager);
+  // @ts-ignore
   assetsManager.onProgress = (remainingCount, totalCount, lastFinishedTask) => {
     console.log(
       "Loading assets: ",
@@ -42,7 +43,9 @@ export const addItemToAssetManager = (
   rootUrl: string,
   model: string,
   id: string,
+  // @ts-ignore
   onSuccess: any = null,
+  // @ts-ignore
   onError: any = null
 ) => {
   if (!rootUrl || !model) {
