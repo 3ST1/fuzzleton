@@ -148,10 +148,10 @@ class Platform extends GameObject {
     }
   }
 
-  public dispose() {
-    this.physicsAggregate.dispose();
-    this.environment.removeShadowsFromMesh(this.platform);
-    this.platform.dispose();
-  }
+  // public dispose() {
+  //   this.physicsAggregate.dispose();
+  //   this.environment.removeShadowsFromMesh(this.platform);
+  //   this.platform.dispose();
+  // }
 }
 export { Platform };

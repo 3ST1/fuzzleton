@@ -140,9 +140,9 @@ export class UIComponentsFactory {
     container.addControl(imageWrapper);
 
     // Handle successful image load
-    image.onImageLoadedObservable.add(() => {
-      console.log(`Image ${imageUrl} loaded successfully`);
-    });
+    // image.onImageLoadedObservable.add(() => {
+    //   console.log(`Image ${imageUrl} loaded successfully`);
+    // });
 
     // Handle image loading error
     image.domImage.onerror = () => {

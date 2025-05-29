@@ -31,8 +31,7 @@ import {
   StackPanel,
   TextBlock,
 } from "@babylonjs/gui";
-import { AssetManagerService } from "./AssetManager";
-import { UIComponentsFactory } from "./UIComponents";
+import { AssetManagerService } from "../AssetManagerService";
 import { selectedMeshUI } from "./selectedMeshUI";
 import { LevelCreatorUI } from "./UI";
 
@@ -41,8 +40,8 @@ export class ObjectController {
   private highlightLayer: HighlightLayer;
   private selectedMesh: Mesh | AbstractMesh | TransformNode | null = null;
 
-  private gridSize: number = 2;
-  private snapToGrid: boolean = false;
+  private gridSize!: number;
+  private snapToGrid!: boolean;
   private yAxisStep: number = 1; // moves of ones if grid size not activated
   private xzAxisStep: number = 1; // moves of ones if grid size not activated
   private onMeshDeleted: (mesh: Mesh) => void;
@@ -54,21 +53,24 @@ export class ObjectController {
   public maxSpeed: number = 50;
 
   public pathVisualization: LinesMesh | null = null;
-  private movementPreviewMesh: Mesh | null = null;
-  private previewAnimation: AnimationGroup | null = null;
+
   // Keep track of object movements
   public objectMovementPaths: Map<string, LinesMesh> = new Map();
   private objectPreviewMeshes: Map<string, Mesh> = new Map();
   private objectAnimations: Map<string, AnimationGroup> = new Map();
+
   // Path control points
   public objectControlPoints: Map<string, Vector3[]> = new Map();
   public controlPointMeshes: Map<string, Mesh[]> = new Map();
   public selectedControlPoint: Mesh | null = null;
   private gizmoManager: GizmoManager | null = null;
-  private assetManager: AssetManagerService;
+
+  // Rotation settings
   public minRotationSpeed: number = 0.001;
   public maxRotationSpeed: number = 0.1;
   private rotationObservers: Map<string, any> = new Map();
+
+  // Physics settings
   public minMass: number = 0;
   public maxMass: number = 1000;
   public minFriction: number = 0;
@@ -79,16 +81,21 @@ export class ObjectController {
   //
   selectedMeshUI: selectedMeshUI;
 
+  assetManager: AssetManagerService;
+
   constructor(
     scene: Scene,
     levelCreatorUI: LevelCreatorUI,
     highlightLayer: HighlightLayer,
     assetManager: AssetManagerService,
+    gridSize: number,
+    snapToGrid: boolean,
     onMeshDeleted: (mesh: Mesh) => void
   ) {
     this.scene = scene;
     this.highlightLayer = highlightLayer;
     this.assetManager = assetManager;
+    this.setGridSettings(snapToGrid, gridSize);
     this.onMeshDeleted = onMeshDeleted;
     this.selectedMeshUI = new selectedMeshUI(scene, levelCreatorUI, this);
 
@@ -101,7 +108,8 @@ export class ObjectController {
     this.gizmoManager.usePointerToAttachGizmos = false;
   }
 
-  setGridSettings(snapToGrid: boolean, gridSize: number) {
+  // can be changed only by this method
+  public setGridSettings(snapToGrid: boolean, gridSize: number) {
     this.snapToGrid = snapToGrid;
     this.gridSize = gridSize;
   }
@@ -116,6 +124,13 @@ export class ObjectController {
     // Don't select ground or grid meshes
     if (mesh === ground || (gridMesh && mesh === gridMesh)) {
       return;
+    }
+
+    // Deselect any selected control point first
+    if (this.selectedControlPoint) {
+      console.log("Deselecting control point before selecting new mesh");
+      this.gizmoManager?.attachToMesh(null);
+      this.selectedControlPoint = null;
     }
 
     // Deselect existing mesh if necessary
@@ -443,6 +458,9 @@ export class ObjectController {
     endPos: Vector3,
     mesh?: AbstractMesh | TransformNode
   ) {
+    console.log(
+      `Creating path visualization from (${startPos.x}, ${startPos.y}, ${startPos.z}) to (${endPos.x}, ${endPos.y}, ${endPos.z})`
+    );
     // Use the provided mesh or fall back to the selected mesh
     const targetMesh = mesh || this.selectedMesh;
 
@@ -477,7 +495,7 @@ export class ObjectController {
 
     // Otherwise, create a new path visualization (clean slate)
     // Remove any remains of existing visualization
-    this.removePathVisualization(targetMesh);
+    this.removePathVisualization(targetMesh); // should not be necessary but just in case
 
     // Initialize control points
     this.objectControlPoints.set(meshId, [startPos.clone(), endPos.clone()]);
@@ -487,21 +505,18 @@ export class ObjectController {
 
     // Create Bezier curve or a straight line
     const controlPoints = this.objectControlPoints.get(meshId)!;
-    let pathPoints = [startPos.clone(), endPos.clone()]; // Simple straight line
+    let pathPoints = [startPos.clone(), endPos.clone()]; // Simple straight line btw the two points
 
     // Create the visible path
-    const pathMaterial = new StandardMaterial(
-      `pathMaterial_${meshId}`,
-      this.scene
-    );
-    pathMaterial.emissiveColor = Color3.Red();
-    pathMaterial.alpha = 1.0;
-
     const pathLine = MeshBuilder.CreateLines(
       `movementPath_${meshId}`,
       { points: pathPoints, updatable: true },
       this.scene
     );
+    const pathMaterial = new StandardMaterial(`pathMat_${meshId}`, this.scene);
+    pathMaterial.emissiveColor = Color3.Red();
+    pathMaterial.alpha = 1.0;
+    pathMaterial.wireframe = false;
 
     pathLine.material = pathMaterial;
     pathLine.isPickable = false;
@@ -521,8 +536,8 @@ export class ObjectController {
       // Try to create a preview based on the model ID if available
       if (targetMesh.metadata?.modelId) {
         previewMesh = this.assetManager.createModelPreview(
-          targetMesh.metadata.modelId,
-          this.scene
+          targetMesh.metadata.modelId
+          // this.scene
         ) as Mesh;
       }
 
@@ -544,7 +559,12 @@ export class ObjectController {
 
         // Try to match the target's scaling
         if (targetMesh.scaling) {
-          previewMesh.scaling = targetMesh.scaling.clone();
+          try {
+            previewMesh.scaling = targetMesh.scaling.clone();
+          } catch (error) {
+            console.error("Error cloning scaling:", error);
+            previewMesh.scaling = new Vector3(1, 1, 1);
+          }
         }
       }
 
@@ -553,6 +573,14 @@ export class ObjectController {
 
       previewMesh.position = startPos.clone();
       previewMesh.isPickable = false;
+      if (!previewMesh.metadata) previewMesh.metadata = {};
+      previewMesh.metadata.isDraggable = false; // Not draggable
+      previewMesh.getChildMeshes().forEach((child) => {
+        if (!child.metadata) child.metadata = {};
+        else child.metadata = { ...child.metadata }; // we create a new object to avoid modifying the original metata (pb with clone ? )
+        child.metadata.isDraggable = false;
+        child.metadata.isPreviewMesh = true;
+      });
 
       // Make the preview slightly smaller
       if (previewMesh.scaling) {
@@ -577,7 +605,7 @@ export class ObjectController {
     }
   }
 
-  // Helper to apply semi-transparent materials to preview meshes
+  // To apply semi-transparent materials to preview meshes
   private applyPreviewMaterial(mesh: Mesh) {
     if (mesh instanceof AbstractMesh) {
       // Check if it already has a material
@@ -620,7 +648,7 @@ export class ObjectController {
       const sphere = MeshBuilder.CreateSphere(
         `controlPoint_${meshId}_${index}`,
         {
-          diameter: isEndPoint ? 1.5 : 1.0, // Make start/end points slightly larger
+          diameter: isEndPoint ? 1 : 0.8, // Make start/end points slightly larger
         },
         this.scene
       );
@@ -650,13 +678,15 @@ export class ObjectController {
       // Store mesh data for interaction
       sphere.metadata = {
         isControlPoint: true,
+        isDraggable: false, // ARE NOT DRAGGABLE WWE CAN MOVE THEM ONLY THROUGH THE GIZMO
         pointIndex: index,
         meshId: meshId,
         isEndPoint: isEndPoint,
       };
 
       // Make pickable only for middle points
-      sphere.isPickable = !isEndPoint; // Only middle points are directly movable
+      // sphere.isPickable = !isEndPoint; // Only middle points are directly movable
+      sphere.isPickable = true; // Only middle points are directly movable
 
       // Add to the array
       pointMeshes.push(sphere);
@@ -718,13 +748,30 @@ export class ObjectController {
           if (controlPoints && metadata.pointIndex < controlPoints.length) {
             controlPoints[metadata.pointIndex] = pointMesh.position.clone();
 
+            // Get the actual mesh that's being controlled
+            const targetMesh = this.findMeshById(metadata.meshId);
+
+            // If this is the start point (index 0), update the actual object position
+            if (metadata.pointIndex === 0 && targetMesh) {
+              targetMesh.position = pointMesh.position.clone();
+            }
+
+            // If this is the end point (last index), update the object's endPos in metadata
+            if (
+              metadata.pointIndex === controlPoints.length - 1 &&
+              targetMesh &&
+              targetMesh.metadata
+            ) {
+              targetMesh.metadata.endPos = pointMesh.position.clone();
+            }
+
             // Update the path visualization in real-time during drag
             this.updatePathFromControlPoints(metadata.meshId);
           }
         }
       });
 
-      // Also update when drag ends (for good measure)
+      // Also update when drag ends with the same logic
       this.gizmoManager.gizmos.positionGizmo.onDragEndObservable.add(() => {
         console.log("Control point drag ended");
         const metadata = pointMesh.metadata;
@@ -733,12 +780,39 @@ export class ObjectController {
           const controlPoints = this.objectControlPoints.get(metadata.meshId);
           if (controlPoints && metadata.pointIndex < controlPoints.length) {
             controlPoints[metadata.pointIndex] = pointMesh.position.clone();
+
+            // Get the actual mesh that's being controlled
+            const targetMesh = this.findMeshById(metadata.meshId);
+
+            // If this is the start point (index 0), update the actual object position
+            if (metadata.pointIndex === 0 && targetMesh) {
+              targetMesh.position = pointMesh.position.clone();
+            }
+
+            // If this is the end point (last index), update the object's endPos in metadata
+            if (
+              metadata.pointIndex === controlPoints.length - 1 &&
+              targetMesh &&
+              targetMesh.metadata
+            ) {
+              targetMesh.metadata.endPos = pointMesh.position.clone();
+            }
+
             this.updatePathFromControlPoints(metadata.meshId);
           }
         }
       });
     } else {
       console.error("Position gizmo is not available");
+    }
+  }
+
+  // Add a method to deselect control points (call this from your pointerDown event handler)
+  public deselectControlPoint() {
+    if (this.selectedControlPoint) {
+      console.log("Deselecting control point");
+      this.gizmoManager?.attachToMesh(null);
+      this.selectedControlPoint = null;
     }
   }
 
@@ -832,7 +906,7 @@ export class ObjectController {
       // Store the new path
       this.objectMovementPaths.set(meshId, newPath);
 
-      console.log("New path created successfully:", newPath.name);
+      // console.log("New path created successfully:", newPath.name);
 
       // Add extra visibility logging
       console.log(
@@ -1092,7 +1166,7 @@ export class ObjectController {
     this.cleanupMeshVisualization(meshId);
   }
 
-  // New method to create path visualization for a loaded mesh
+  // to create path visualization for a loaded mesh
   public createPathVisualizationForMesh(mesh: AbstractMesh | TransformNode) {
     if (!mesh || !mesh.metadata) {
       console.warn(
@@ -1197,7 +1271,7 @@ export class ObjectController {
     }
   }
 
-  // Helper method to create a preview mesh and animation
+  // to create a preview mesh and animation
   private createAnimatedPreviewMesh(
     meshId: string,
     pathPoints: Vector3[],
@@ -1213,8 +1287,8 @@ export class ObjectController {
           `Creating preview from modelId: ${targetMesh.metadata.modelId}`
         );
         newPreviewMesh = this.assetManager.createModelPreview(
-          targetMesh.metadata.modelId,
-          this.scene
+          targetMesh.metadata.modelId
+          // this.scene
         ) as Mesh;
       }
 
@@ -1227,7 +1301,7 @@ export class ObjectController {
         ) as Mesh;
       }
 
-      // If both approaches failed, create a simple box
+      // If both approaches failed create a simple box
       if (!newPreviewMesh) {
         console.log("Creating simple box preview mesh");
         newPreviewMesh = MeshBuilder.CreateBox(
@@ -1238,7 +1312,12 @@ export class ObjectController {
 
         // Try to match the target's scaling
         if (targetMesh.scaling) {
-          newPreviewMesh.scaling = targetMesh.scaling.clone();
+          try {
+            newPreviewMesh.scaling = targetMesh.scaling.clone();
+          } catch (error) {
+            console.error("Error cloning scaling:", error);
+            newPreviewMesh.scaling = new Vector3(1, 1, 1);
+          }
         }
       }
 
@@ -1249,10 +1328,20 @@ export class ObjectController {
       newPreviewMesh.position = pathPoints[0].clone();
       newPreviewMesh.isPickable = false;
 
+      // set preview as not draggable
+      if (!newPreviewMesh.metadata) newPreviewMesh.metadata = {};
+      newPreviewMesh.metadata.isDraggable = false; // Not draggable
+      newPreviewMesh.getChildMeshes().forEach((child) => {
+        if (!child.metadata) child.metadata = {};
+        else child.metadata = { ...child.metadata }; // we create a new object to avoid modifying the original metata (pb with clone ? )
+        child.metadata.isDraggable = false;
+        child.metadata.isPreviewMesh = true;
+      });
+
       // Make the preview slightly smaller
-      if (newPreviewMesh.scaling) {
-        newPreviewMesh.scaling.scaleInPlace(0.8);
-      }
+      // if (newPreviewMesh.scaling) {
+      //   newPreviewMesh.scaling.scaleInPlace(0.8);
+      // }
 
       // Store the new preview mesh
       this.objectPreviewMeshes.set(meshId, newPreviewMesh);
@@ -1272,7 +1361,7 @@ export class ObjectController {
     }
   }
 
-  // Now add these helper methods for rotation animation management
+  // methods for rotation animation management
   public setupRotationAnimation(mesh: AbstractMesh | TransformNode): void {
     if (!mesh || !mesh.metadata || !mesh.metadata.rotating) return;
 
@@ -1330,7 +1419,7 @@ export class ObjectController {
   }
 
   public applyMeshProperties(mesh: Mesh, meshData: any): void {
-    console.log(`Successfully created mesh: ${mesh.name}`);
+    // console.log(`Successfully created mesh: ${mesh.name}`);
 
     // Set properties from saved data
     mesh.scaling = new Vector3(
@@ -1462,5 +1551,38 @@ export class ObjectController {
     console.log(
       `Loaded physics data for mesh ${mesh.name}: mass=${mesh.metadata.physics.mass}, friction=${mesh.metadata.physics.friction}, restitution=${mesh.metadata.physics.restitution}`
     );
+  }
+
+  dispose() {
+    // Deselect any selected mesh
+    this.deselectMesh();
+
+    // Clean up all path visualizations
+    this.removeAllPathVisualizations();
+
+    // Dispose all control point meshes
+    this.controlPointMeshes.forEach((meshes) => {
+      meshes.forEach((mesh) => {
+        if (mesh && !mesh.isDisposed()) {
+          mesh.dispose();
+        }
+      });
+    });
+    this.controlPointMeshes.clear();
+
+    // Clear all maps
+    this.objectControlPoints.clear();
+    this.objectMovementPaths.clear();
+    this.objectPreviewMeshes.clear();
+    this.objectAnimations.clear();
+    this.rotationObservers.clear();
+
+    // Dispose gizmo manager if it exists
+    if (this.gizmoManager) {
+      this.gizmoManager.dispose();
+      this.gizmoManager = null;
+    }
+
+    console.log("ObjectController disposed");
   }
 }

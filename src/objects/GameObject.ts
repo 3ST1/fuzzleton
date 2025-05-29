@@ -127,14 +127,14 @@ class GameObject {
     return this.endPosition;
   }
 
-  public dispose() {
-    try {
-      this.obj.dispose();
-      this.physicsAggregate.dispose();
-    } catch (e) {
-      console.error("Error disposing object (in GameObject)", e, this.obj);
-    }
-  }
+  // public dispose() {
+  //   try {
+  //     this.obj.dispose();
+  //     this.physicsAggregate.dispose();
+  //   } catch (e) {
+  //     console.error("Error disposing object (in GameObject)", e, this.obj);
+  //   }
+  // }
 }
 
 export { GameObject };

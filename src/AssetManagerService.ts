@@ -13,23 +13,60 @@ import {
 // Handles asset loading and management for the level creator
 
 export class AssetManagerService {
+  // Singleton instance
+  // We use a private static variable to hold the instance
+  // private static _instance: AssetManagerService | null = null;
+
   private assetsManager!: AssetsManager;
   public modelAssets: { [key: string]: AssetContainer } = {};
-  allAssestsLoaded: boolean = false;
+  private allAssestsLoaded: boolean = false;
+  // Track which assets have already been added to the manager
+  private addedAssets: Set<string> = new Set();
   // Add storage for asset paths
   private assetPaths: {
     [key: string]: { rootPath: string; filename: string };
   } = {};
+  private scene!: Scene;
 
   constructor(scene: Scene) {
-    this.initializeAssetsManager(scene);
+    // WE REMOVED THIS AND THE assetsManager will now be automatically initialized when needed (in loadAssets or loadAssetsAsync is called)
+    this.scene = scene;
+    this.initializeAssetsManager();
   }
+
+  // Static methods to get/set the singleton instance
+  // public static setInstance(scene: Scene): AssetManagerService {
+  //   if (!AssetManagerService._instance) {
+  //     AssetManagerService._instance = new AssetManagerService(scene);
+  //     console.log("AssetManagerService instance created");
+  //   } else {
+  //     console.warn(
+  //       "AssetManagerService instance already exists, returning the existing instance"
+  //     );
+  //   }
+  //   return AssetManagerService._instance;
+  // }
+  // public static getInstance(): AssetManagerService {
+  //   if (!AssetManagerService._instance) {
+  //     throw new Error(
+  //       "AssetManagerService instance not created.\
+  //        Please call setInstance with a scene first \
+  //        (scene can be changed later wiht changeScene or directly through loadAssets or loadAssetsAsync  )."
+  //     );
+  //   }
+  //   return AssetManagerService._instance;
+  // }
 
   // Initialize the AssetsManager for the scene
 
-  public initializeAssetsManager(scene: Scene): AssetsManager {
+  public initializeAssetsManager(): AssetsManager {
     console.log("Initializing assets manager...");
-    this.assetsManager = new AssetsManager(scene);
+    if (!this.assetsManager) {
+      console.log("Creating new AssetsManager instance");
+      this.assetsManager = new AssetsManager(this.scene);
+    } else {
+      console.log("Using existing AssetsManager instance");
+    }
 
     this.assetsManager.onProgress = (
       remainingCount,
@@ -37,23 +74,39 @@ export class AssetManagerService {
       // @ts-ignore
       lastFinishedTask
     ) => {
-      console.log(
-        "Loading assets: ",
-        remainingCount,
-        " out of ",
-        totalCount,
-        " items still need to be loaded."
-      );
+      // console.log(
+      //   "Loading assets: ",
+      //   remainingCount,
+      //   " out of ",
+      //   totalCount,
+      //   " items still need to be loaded."
+      // );
 
-      scene.getEngine().loadingUIText =
-        "Loading the scene... " +
-        remainingCount +
-        " out of " +
-        totalCount +
-        " items still need to be loaded.";
+      if (this.scene) {
+        const engine = this.scene.getEngine();
+        if (engine) {
+          engine.loadingUIText =
+            "Loading the scene... " +
+            remainingCount +
+            " out of " +
+            totalCount +
+            " items still need to be loaded.";
+        }
+      }
     };
 
-    scene.getEngine().loadingScreen.loadingUIBackgroundColor = "orange";
+    this.scene.getEngine().loadingScreen.loadingUIBackgroundColor = "orange";
+
+    // Add this code to continue loading when a task fails
+    this.assetsManager.onTaskError = (task) => {
+      console.warn(
+        `ERROR - Failed to load asset: ${task.name}`,
+        task.errorObject
+      );
+      console.log(`Will continue loading: true`);
+      this.assetsManager.removeTask(task); // Remove the task to avoid blocking
+      return true; // Return true to continue loading other assets
+    };
 
     this.assetsManager.onFinish = (tasks) => {
       console.log("All assets loaded: ", tasks);
@@ -62,23 +115,34 @@ export class AssetManagerService {
     return this.assetsManager;
   }
 
+  // public changeScene(scene: Scene): void {
+  //   console.log("Changing scene for AssetManager");
+  //   this.scene = scene;
+  //   this.initializeAssetsManager(); // Reinitialize the assets manager for the new scene
+  // }
+
   // Loads an asset from the specified path
   public addAssetToAssetManager(
     rootPath: string,
     filename: string,
-    id: string
+    id: string,
+    _onSuccess: (task: any) => void = () => {},
+    _onError: (task: any) => void = () => {}
   ): void {
-    const ident = id; // + Date.now().toString(); // for unique id
+    // Use clean ID without additional prefixes or timestamps
+    const cleanId = id.replace(/^placed-/, "").split("-")[0]; // Remove prefix and timestamp
+    const taskId = `task-${id}-${Date.now()}`; // Use a separate ID for the task
 
-    // Store the path information for this asset
-    this.assetPaths[id] = {
+    // console.log(`Adding asset with clean ID: ${cleanId}, task ID: ${taskId}`);
+
+    // Store the path information for this asset using clean ID
+    this.assetPaths[cleanId] = {
       rootPath: rootPath,
       filename: filename,
     };
 
     const onSuccess = (task) => {
-      console.log(`Successfully loaded asset: ${id}`);
-
+      _onSuccess(task);
       // Store loaded meshes to create a template
       const originalMeshes = task.loadedMeshes;
 
@@ -105,26 +169,40 @@ export class AssetManagerService {
         mesh.setEnabled(false);
       });
 
-      // Store container for later instantiation
-      this.modelAssets[id] = container;
-      console.log(
-        `Added ${id} to modelAssets with ${container.meshes.length} meshes`
-      );
+      // Store container using clean ID for consistent lookup
+      this.modelAssets[cleanId] = container;
+      // console.log(
+      //   `Added asset with clean ID: ${cleanId} to modelAssets. Available models: ${Object.keys(
+      //     this.modelAssets
+      //   )}`
+      // );
     };
 
     const onError = (task) => {
+      _onError(task);
       console.error("Error loading asset: ", task.errorObject.message);
+      // Remove the path info for failed loads using clean ID
+      delete this.assetPaths[cleanId];
+      // Optionally, remove the model from modelAssets if it was partially loaded
+      if (this.modelAssets[cleanId]) {
+        this.modelAssets[cleanId].dispose(); // Dispose the container if it exists
+        delete this.modelAssets[cleanId]; // Remove from modelAssets
+      }
+      console.warn(
+        `Removed asset with clean ID: ${cleanId} from modelAssets due to error`
+      );
+      return;
     };
 
-    this.addItem(rootPath, filename, ident, onSuccess, onError);
+    // Pass taskId to the mesh task for uniqueness, but store with cleanId
+    this.addItem(rootPath, filename, taskId, onSuccess, onError);
   }
 
   // Create a raw clone of all meshes in a model container
   private createRawClone(
     container: AssetContainer,
     namePrefix: string,
-    // @ts-ignore
-    scene: Scene,
+    // targetScene: Scene, // seems like we cannot pass meshes from one scene to another so we will use multiple AssetManager and reload everything each time ...
     rootMesh: Mesh,
     modelId?: string
   ): void {
@@ -156,7 +234,7 @@ export class AssetManagerService {
         rootMesh.metadata.fileName = assetPath.filename;
       }
 
-      console.log(`Added metadata to root mesh: modelId=${modelId}`);
+      // console.log(`Added metadata to root mesh: modelId=${modelId}`);
     }
 
     // Now first we clone all meshes but don't set parents yet
@@ -275,11 +353,11 @@ export class AssetManagerService {
   // Create a model instance at a specific position
   public createModelInstance(
     modelId: string,
-    position: Vector3,
-    scene: Scene,
-    snapToGrid: boolean = false,
-    gridSize: number = 2,
-    scaling: boolean = true,
+    position: Vector3, // NOW GRID SIZE MUST BE APPLIED ON POSITION BEFORE PASSING IT HERE
+    // targetScene: Scene, // it seems like we cannot pass meshes from one scene to another so we will use multiple AssetManager and reload everything each time ...
+    // snapToGrid: boolean = false,
+    // gridSize: number = 2,
+    // scaling: boolean = true,
     scalingFactor: number = 1
   ): Mesh | null {
     try {
@@ -289,7 +367,10 @@ export class AssetManagerService {
       const container = this.modelAssets[modelId];
 
       if (!container) {
-        console.error(`Model ${modelId} not found in loaded assets`);
+        console.error(
+          `Model ${modelId} not found in loaded assets : `,
+          this.modelAssets
+        );
         return null;
       }
 
@@ -297,7 +378,8 @@ export class AssetManagerService {
       const timestamp = Date.now();
 
       // Create a root mesh to hold the model
-      const rootMesh = new Mesh(`placed-${modelId}-${timestamp}`, scene);
+      // const rootMesh = new Mesh(`placed-${modelId}-${timestamp}`, targetScene);
+      const rootMesh = new Mesh(`placed-${modelId}-${timestamp}`, this.scene);
       rootMesh.isVisible = true; // Ensure the root is visible
 
       // Set name based on modelId for better identification
@@ -308,7 +390,7 @@ export class AssetManagerService {
       this.createRawClone(
         container,
         `placed-${timestamp}`,
-        scene,
+        // targetScene,
         rootMesh,
         modelId
       );
@@ -316,32 +398,36 @@ export class AssetManagerService {
       // Apply position (with grid snapping if enabled)
       rootMesh.position.y = 0;
       // console.log("snap to grid ? ", snapToGrid);
-      if (snapToGrid) {
-        rootMesh.position.x = Math.round(position.x / gridSize); // gridSize;
-        rootMesh.position.y = 0; //Math.round(position.y / gridSize) // gridSize;
-        rootMesh.position.z = Math.round(position.z / gridSize); // gridSize;
-      } else {
-        // console.warn("position: ", position);
-        rootMesh.position = new Vector3(position.x, position.y, position.z);
-      }
+      // if (snapToGrid) {
+      //   rootMesh.position.x = Math.round(position.x / gridSize); // gridSize;
+      //   rootMesh.position.y = 0; //Math.round(position.y / gridSize) // gridSize;
+      //   rootMesh.position.z = Math.round(position.z / gridSize); // gridSize;
+      // } else {
+      // console.warn("position: ", position);
+      rootMesh.position = new Vector3(position.x, position.y, position.z);
+      // }
       // console.warn(
       //   `placed model at: X:${rootMesh.position.x}, Y:${rootMesh.position.y}, Z:${rootMesh.position.z}`
       // );
 
-      if (scaling) {
+      // if (scaling) {
+      if (scalingFactor !== 1) {
         rootMesh.scaling = new Vector3(
           scalingFactor,
           scalingFactor,
           scalingFactor
         );
       }
-      console.log(`Applied 5x scaling to model: ${modelId}`);
 
       // Make sure the mesh is in the scene
-      if (!scene.meshes.includes(rootMesh)) {
+      if (!this.scene.meshes.includes(rootMesh)) {
         console.warn("Root mesh not found in scene - adding it explicitly");
-        scene.addMesh(rootMesh);
+        this.scene.addMesh(rootMesh);
       }
+      // if (!targetScene.meshes.includes(rootMesh)) {
+      //   console.warn("Root mesh not found in scene - adding it explicitly");
+      //   targetScene.addMesh(rootMesh);
+      // }
 
       console.log(
         `Placed model at: X:${rootMesh.position.x}, Y:${rootMesh.position.y}, Z:${rootMesh.position.z}`
@@ -357,11 +443,11 @@ export class AssetManagerService {
   // Create a preview instance of a model
   public createModelPreview(
     modelId: string,
-    scene: Scene,
+    // targetScene: Scene,
     scalingFactor = 1
   ): Mesh | null {
     try {
-      console.log(`AssetManager: Creating preview for ${modelId}`);
+      console.log(`AssetManager: Creating preview for ${modelId} `);
       const container = this.modelAssets[modelId];
 
       if (!container) {
@@ -377,7 +463,8 @@ export class AssetManagerService {
       );
 
       // Create a temporary root mesh to hold the model
-      const previewRoot = new Mesh(`preview-${modelId}`, scene);
+      const previewRoot = new Mesh(`preview-${modelId}`, this.scene);
+      // const previewRoot = new Mesh(`preview-${modelId}`, targetScene);
       previewRoot.isVisible = true;
 
       // Add preview metadata
@@ -388,7 +475,8 @@ export class AssetManagerService {
       };
 
       try {
-        this.createRawClone(container, `preview`, scene, previewRoot);
+        this.createRawClone(container, `preview`, previewRoot);
+        // this.createRawClone(container, `preview`, targetScene, previewRoot);
 
         previewRoot.scaling = new Vector3(
           scalingFactor,
@@ -397,10 +485,14 @@ export class AssetManagerService {
         );
 
         // Add to scene
-        if (!scene.meshes.includes(previewRoot)) {
+        if (!this.scene.meshes.includes(previewRoot)) {
           console.log("Adding preview mesh to scene explicitly");
-          scene.addMesh(previewRoot);
+          this.scene.addMesh(previewRoot);
         }
+        // if (!targetScene.meshes.includes(previewRoot)) {
+        //   console.log("Adding preview mesh to scene explicitly");
+        //   targetScene.addMesh(previewRoot);
+        // }
 
         return previewRoot;
       } catch (error) {
@@ -417,9 +509,12 @@ export class AssetManagerService {
     }
   }
 
-  // Load multiple assets from a list of filenames
-  public addModelsToAssetManager(rootPath: string, modelFiles: string[]): void {
-    modelFiles.forEach((filename) => {
+  // Load multiple assets from a list of filenames (modelsFiles)
+  public addModelsToAssetManager(
+    rootPath: string,
+    modelsFiles: string[]
+  ): void {
+    modelsFiles.forEach((filename) => {
       const modelId = this.getModelIdFromFilename(filename);
       this.addAssetToAssetManager(rootPath, filename, modelId);
     });
@@ -443,14 +538,30 @@ export class AssetManagerService {
       return false;
     }
 
-    console.log(
-      "Adding the following item to asset manager: ",
-      id,
-      rootUrl,
-      model
-    );
+    // Check if this exact asset has already been added to the manager
+    const assetKey = `${rootUrl}/${model}`;
+    if (this.addedAssets.has(assetKey)) {
+      console.log(`Asset ${assetKey} already added to manager, skipping`);
+      // If the asset already exists and we have a success callback, call it
+      if (onSuccess && this.modelAssets[this.getModelIdFromFilename(model)]) {
+        // Create a simulated task object with the loaded meshes
+        const simulatedTask = {
+          loadedMeshes: [],
+          loadedSkeletons: [],
+          loadedAnimationGroups: [],
+          loadedParticleSystems: [],
+          scene: this.scene,
+        };
+        onSuccess(simulatedTask);
+      }
+      return true;
+    }
 
-    this.allAssestsLoaded = false; // since we add a new asset to the asset manager all asset are not loaded
+    // Mark that we're adding a new asset
+    this.allAssestsLoaded = false;
+
+    // Add to our tracking set
+    this.addedAssets.add(assetKey);
 
     const meshTask = this.assetsManager.addMeshTask(id, "", rootUrl, model);
 
@@ -468,39 +579,108 @@ export class AssetManagerService {
 
       // Remove the path info for failed loads
       delete this.assetPaths[id];
+
+      // Remove from tracking set
+      this.addedAssets.delete(assetKey);
     };
     return meshTask;
   }
 
   // Start loading all registered assets
-  public loadAssets(onFinish?: () => void): void {
-    if (onFinish) {
-      // @ts-ignore
-      this.assetsManager.onFinish = (tasks) => {
-        this.allAssestsLoaded = true;
-        console.log(
-          "All assets loaded, available models:",
-          Object.keys(this.modelAssets)
-        );
-        // Debug the loaded assets
-        onFinish();
-      };
+  public loadAssets(
+    // scene: Scene, // so we are sure the asset manager always has the wanted scene by forcing the scene to be passed
+    onFinish?: () => void
+  ): void {
+    console.warn(
+      "AssetManager: Starting to load assets with loadAssets function. We recommend using loadAssetsAsync instead for better async handling."
+    );
+    // if (scene.uid !== this.scene?.uid) {
+    //   console.warn("Scene has changed, resetting AssetManager");
+    //   this.changeScene(scene);
+    // }
+
+    // Check if there are any pending tasks to load
+    const hasPendingTasks =
+      this.assetsManager.useDefaultLoadingScreen ||
+      Object.keys(this.assetPaths).some((id) => !this.modelAssets[id]);
+
+    if (!hasPendingTasks) {
+      console.log("No assets to load, marking as complete");
+      this.allAssestsLoaded = true;
+      if (typeof onFinish === "function") {
+        try {
+          onFinish();
+        } catch (error) {
+          console.error("Error in onFinish callback:", error);
+        }
+      }
+      return;
     }
+
+    // Set up the onFinish callback for assets manager
+    this.assetsManager.onFinish = (tasks) => {
+      this.allAssestsLoaded = true;
+      console.log(
+        "All assets loaded, available models:",
+        Object.keys(this.modelAssets)
+      );
+      if (typeof onFinish === "function") {
+        try {
+          onFinish();
+        } catch (error) {
+          console.error("Error in onFinish callback:", error);
+        }
+      }
+    };
+
+    if (this.allAssestsLoaded) {
+      console.log("All assets already loaded, skipping load");
+      if (typeof onFinish === "function") {
+        try {
+          onFinish();
+        } catch (error) {
+          console.error("Error in onFinish callback:", error);
+        }
+      }
+      return;
+    }
+
     this.assetsManager.load();
   }
 
-  public async loadAssetsAsync(onFinish?: () => void): Promise<void> {
+  public async loadAssetsAsync(
+    // scene: Scene, // so we are sure the asset manager always has the wanted scene by forcing the scene to be passed
+    onFinish?: () => void
+  ): Promise<void> {
+    // if (scene.uid !== this.scene?.uid) {
+    //   console.warn("Scene has changed resetting it in AssetManager");
+    //   this.changeScene(scene);
+    // }
+
     console.log("starting loadAssets Async ");
     if (this.allAssestsLoaded) {
       console.log("All assets already loaded, skipping load");
-      if (onFinish) onFinish();
+      if (typeof onFinish === "function") {
+        try {
+          onFinish();
+        } catch (error) {
+          console.error("Error in onFinish callback:", error);
+        }
+      }
       return Promise.resolve();
     }
 
     return new Promise<void>((resolve) => {
       this.loadAssets(() => {
-        console.log("Assets loaded successfully");
-        if (onFinish) onFinish();
+        // this.loadAssets(scene, () => {
+        console.log("AssetManager: All Assets loaded successfully");
+        if (typeof onFinish === "function") {
+          try {
+            onFinish();
+          } catch (error) {
+            console.error("Error in onFinish callback:", error);
+          }
+        }
         resolve();
       });
     });
@@ -510,7 +690,10 @@ export class AssetManagerService {
   public checkIfModelIdExist(modelId: string): string | null {
     // Check the model exists in our loaded assets
     if (!this.modelAssets[modelId]) {
-      console.warn(`Model with ID ${modelId} not found in loaded models`);
+      console.warn(
+        `Model with ID ${modelId} not found in loaded models: `,
+        this.modelAssets
+      );
 
       // Try to find by name match
       const models = Object.keys(this.modelAssets);
@@ -537,7 +720,7 @@ export class AssetManagerService {
   }
 
   // Check if all assets are loaded
-  public isLoaded(): boolean {
+  public hasFinishLoading(): boolean {
     // Check if assets manager has finished loading
     // return Object.keys(this.modelAssets).length > 0; /// HERE
     return this.allAssestsLoaded;
@@ -561,7 +744,7 @@ export class AssetManagerService {
     if (!this.modelAssets[modelId]) {
       console.warn(`Model with ID ${modelId} not found in loaded models`);
 
-      // Try to find by name match
+      // Try to find by similar name match
       const models = Object.keys(this.modelAssets);
       const similarModel = models.find(
         (id) =>
@@ -582,10 +765,13 @@ export class AssetManagerService {
 
     // This is a fallback in case we somehow have the asset loaded but don't have path info
     // (should not normally happen)
-    return {
-      rootPath: "/kaykit/", // Default root path
-      filename: `${modelId}.gltf.glb`, // Constructed filename
-    };
+    // return {
+    //   rootPath: "/kaykit/", // Default root path
+    //   filename: `${modelId}.gltf.glb`, // Constructed filename
+    // };
+    throw new Error(
+      `Asset path for model ID ${modelId} not found in assetPaths`
+    );
   }
 
   // check if a model exists
@@ -624,4 +810,11 @@ export class AssetManagerService {
       return false;
     }
   }
+
+  // Add the missing changeScene method
+  // public changeScene(scene: Scene): void {
+  //   console.log("Changing scene for AssetManager");
+  //   this.scene = scene;
+  //   this.initializeAssetsManager(); // Reinitialize the assets manager for the new scene
+  // }
 }

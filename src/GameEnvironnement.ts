@@ -29,6 +29,7 @@ import {
 } from "@babylonjs/core";
 import { AdvancedDynamicTexture, Control, TextBlock } from "@babylonjs/gui";
 import { addPhysicsAggregate } from "./App";
+import { c } from "vite/dist/node/moduleRunnerTransport.d-CXw_Ws6P";
 
 // create a type for the objects to add physics
 export type MyEnvObjsToAddPhysics = {
@@ -46,13 +47,9 @@ export class GameEnvironment {
   light!: DirectionalLight;
   shadowGenerator!: ShadowGenerator;
   ground: any;
-
-  //   public camera: FreeCamera;
-  // objectsToAddPhysics: MyEnvObjsToAddPhysics[] = [];
   skybox!: Mesh;
   hemiLight!: HemisphericLight;
-  // shadowGenerator: any;
-  bisShadowGenerator: any;
+  mainDirLight!: DirectionalLight;
 
   constructor(scene: Scene, canvas: HTMLCanvasElement) {
     this.scene = scene;
@@ -160,8 +157,8 @@ export class GameEnvironment {
       }
     };
   }
-  private _setupLightsAndShadows(): void {
-    // Hemispheric light for ambient illumination
+  private _setupLights(): void {
+    // Hemispheric light for ambient lightning
     this.hemiLight = new HemisphericLight(
       "HemiLight",
       new Vector3(0, 1, 0),
@@ -172,9 +169,9 @@ export class GameEnvironment {
     this.hemiLight.specular = new Color3(0.7, 0.5, 0.3);
     this.hemiLight.groundColor = new Color3(0.6, 0.5, 0.5);
 
-    // Directional Light 1
+    // Main DirectionalLight Light
     var light = new DirectionalLight(
-      "lightDir01",
+      "MainDirLight",
       new Vector3(-1, -1, -1),
       this.scene
     );
@@ -191,7 +188,9 @@ export class GameEnvironment {
     light.orthoTop = 500; // Upper Y boundary (increase if shadows clip vertically)
     light.orthoBottom = -500; // Lower Y boundary
     light.orthoLeft = -500; // Left X boundary
-    light.orthoRight = 500; // Right X boundary
+    light.orthoRight = 500; // Right X boundary*
+
+    this.mainDirLight = light;
 
     // var lightSphere = Mesh.CreateSphere("sphere", 10, 2, this.scene);
     // lightSphere.position = light.position;
@@ -240,12 +239,16 @@ export class GameEnvironment {
       0
     );
 
+    // Adding a small abient fog
+    this.scene.fogMode = Scene.FOGMODE_EXP;
+    this.scene.fogDensity = 0.0009;
+    this.scene.fogColor = new Color3(0.85, 0.75, 0.65);
+    // this.scene.fogMode = Scene.FOGMODE_EXP;
+  }
+  private _setupShadows(): void {
     // Shadows
     // this.shadowGenerator = [];
-    this.shadowGenerator = new ShadowGenerator(2048, light);
-    // this.bisShadowGenerator = new ShadowGenerator(2048, lightbis);
-    // // this.shadowGenerators.push(new ShadowGenerator(4096, light2));
-    // // this.shadowGenerators.push(new ShadowGenerator(2048, spotLight));
+    this.shadowGenerator = new ShadowGenerator(2048, this.mainDirLight);
 
     this.shadowGenerator.mapSize = 14000;
     this.shadowGenerator.bias = 0.001;
@@ -254,8 +257,11 @@ export class GameEnvironment {
     this.shadowGenerator.useKernelBlur = true;
     this.shadowGenerator.blurKernel = 256;
     this.shadowGenerator.usePercentageCloserFiltering = true;
-    this.shadowGenerator.filteringQuality = ShadowGenerator.QUALITY_HIGH;
+    this.shadowGenerator.filteringQuality = ShadowGenerator.QUALITY_MEDIUM;
 
+    // this.bisShadowGenerator = new ShadowGenerator(2048, lightbis);
+    // // this.shadowGenerators.push(new ShadowGenerator(4096, light2));
+    // // this.shadowGenerators.push(new ShadowGenerator(2048, spotLight));
     // this.bisShadowGenerator.mapSize = 512;
     // this.bisShadowGenerator.bias = 0.001;
     // this.bisShadowGenerator.normalBias = 0.01;
@@ -264,12 +270,6 @@ export class GameEnvironment {
     // this.bisShadowGenerator.blurKernel = 256;
     // this.bisShadowGenerator.usePercentageCloserFiltering = true;
     // this.bisShadowGenerator.filteringQuality = ShadowGenerator.QUALITY_MEDIUM;
-
-    // Adding a small abient fog
-    this.scene.fogMode = Scene.FOGMODE_EXP;
-    this.scene.fogDensity = 0.0009;
-    this.scene.fogColor = new Color3(0.85, 0.75, 0.65);
-    // this.scene.fogMode = Scene.FOGMODE_EXP;
   }
 
   public addShadowsToMesh(mesh: Mesh): void {
@@ -313,74 +313,74 @@ export class GameEnvironment {
   }
 
   private _setupGround(heightMapPath: string = ""): void {
+    const onGroundCreated = (
+      ground: GroundMesh,
+      fromHeightMap: boolean = false
+    ): void => {
+      // console.log("Ground created: ", ground);
+      ground.checkCollisions = true;
+      ground.position.y = fromHeightMap ? -100 : 0;
+
+      // Add shadows to the ground
+      // this._addShadowCaster(ground);
+
+      // Apply a sand-like material with soft glow
+      // const sandMaterial = new StandardMaterial("sandMaterial", this.scene);
+      // sandMaterial.diffuseColor = new Color3(1, 0.8, 0.6); // Warm sand color
+      // sandMaterial.specularColor = new Color3(0, 0, 0);
+      // sandMaterial.emissiveColor = new Color3(0.2, 0.15, 0.1); // Soft glow
+
+      // ground.material = sandMaterial;
+
+      // Load a texture image for the ground
+      const groundTexture = new Texture("/textures/woodPlanks.jpg", this.scene);
+      groundTexture.uScale = 100;
+      groundTexture.vScale = 100;
+      ground.material = new StandardMaterial("groundMaterial", this.scene);
+      (ground.material as StandardMaterial).diffuseTexture = groundTexture;
+
+      ground.receiveShadows = true;
+
+      if (this.scene.getPhysicsEngine()) {
+        const groundPhysics = new PhysicsAggregate(
+          ground,
+          PhysicsShapeType.MESH, // MESH is better for heightmap terrain
+          { mass: 0, friction: 0.5, restitution: 0 },
+          this.scene
+        );
+      }
+    };
+
     const groundOptions = {
       width: 500,
       height: 500,
       subdivisions: 500,
       minHeight: 0,
+      // if we pass an heightmap, we set the max height to 100 else 1 (flat ground)
       maxHeight: heightMapPath === "" ? 1 : 100,
-      onReady: (ground: GroundMesh) =>
-        this._onGroundCreated(ground, heightMapPath !== ""),
     };
 
     if (heightMapPath === "") {
       // PLANE GROUND
-      const ground: GroundMesh = MeshBuilder.CreateGround(
+      this.ground = MeshBuilder.CreateGround(
         "groundBox",
-        { width: groundOptions.width, height: groundOptions.height },
+        groundOptions,
         this.scene
       );
-      this._onGroundCreated(ground);
+      onGroundCreated(this.ground);
     } else {
       // // FROM HEIGHTMAP
-      const ground: GroundMesh = MeshBuilder.CreateGroundFromHeightMap(
+      this.ground = MeshBuilder.CreateGroundFromHeightMap(
         "groundHeightmap",
         heightMapPath,
-        groundOptions,
+        {
+          ...groundOptions,
+          onReady: (ground: GroundMesh) => onGroundCreated(ground, true),
+        },
         this.scene
       );
     }
   }
-
-  private _onGroundCreated = (
-    ground: GroundMesh,
-    fromHeightMap: boolean = false
-  ): void => {
-    // console.log("Ground created: ", ground);
-    ground.checkCollisions = true;
-    ground.position.y = fromHeightMap ? -100 : 0;
-
-    // Add shadows to the ground
-    // this._addShadowCaster(ground);
-
-    // Apply a sand-like material with soft glow
-    // const sandMaterial = new StandardMaterial("sandMaterial", this.scene);
-    // sandMaterial.diffuseColor = new Color3(1, 0.8, 0.6); // Warm sand color
-    // sandMaterial.specularColor = new Color3(0, 0, 0);
-    // sandMaterial.emissiveColor = new Color3(0.2, 0.15, 0.1); // Soft glow
-
-    // ground.material = sandMaterial;
-
-    // Load a texture image for the ground
-    const groundTexture = new Texture("/textures/woodPlanks.jpg", this.scene);
-    groundTexture.uScale = 100;
-    groundTexture.vScale = 100;
-    ground.material = new StandardMaterial("groundMaterial", this.scene);
-    (ground.material as StandardMaterial).diffuseTexture = groundTexture;
-
-    ground.receiveShadows = true;
-
-    if (this.scene.getPhysicsEngine()) {
-      const groundPhysics = new PhysicsAggregate(
-        ground,
-        PhysicsShapeType.MESH, // MESH is better for heightmap terrain
-        { mass: 0, friction: 0.5, restitution: 0 },
-        this.scene
-      );
-    }
-
-    this.ground = ground;
-  };
 
   // >TO REMOVE
   private async _initSphere(): Promise<void> {
@@ -409,7 +409,7 @@ export class GameEnvironment {
 
     sphere.visibility = 0;
 
-    // Add physics to the sphere
+    // // Add physics to the sphere
     const physicsAggregate = addPhysicsAggregate(
       this.scene,
       sphere,
@@ -471,7 +471,7 @@ export class GameEnvironment {
 
   private setupDebugGUI(): void {
     // debug info menu that is shown when this.debug is true
-    // TO DO ?
+    // TO DO
   }
 
   public updateFps(fps: number) {
@@ -483,7 +483,8 @@ export class GameEnvironment {
   }
 
   public setupGameEnvironment(thirdPers: boolean = true): void {
-    this._setupLightsAndShadows();
+    this._setupLights();
+    this._setupShadows();
     this._setupSkybox();
     this._setupGround(); // if you want to use heightmap, pass the path to the heightmap image like that this._setupGround("./heightmaps/dunes.png")
     // this._setupGround("./heightmaps/dunes.png")

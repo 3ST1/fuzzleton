@@ -27,6 +27,9 @@ import { LevelGenerator } from "./LevelGenerator";
 import { levelFromFile } from "./levelFromFile";
 import { addItemToAssetManager } from "../basicAssetManager";
 import PlayerController from "../player/thirdPersonController";
+import { SceneSerializer } from "../levelCreator/SceneSerializer";
+import { AssetManagerService } from "../AssetManagerService";
+
 export interface WallProp {
   x: number;
   y: number;
@@ -41,20 +44,24 @@ export class Level {
   gameEnv: GameEnvironment;
   lvlObjs: any[] = [];
   lvlGen: LevelGenerator;
-  assetsManager: AssetsManager;
+  assetManagerService: AssetManagerService;
   player: PlayerController;
+
+  initialLevelData: any | null = null; // To store data passed for testing
 
   constructor(
     scene: Scene,
     environment: GameEnvironment,
-    assetsManager: AssetsManager,
-    player: PlayerController
+    assetsManager: AssetManagerService,
+    player: PlayerController,
+    initialLevelData: any | null = null
   ) {
     this.scene = scene;
     this.gameEnv = environment;
     this.lvlGen = new LevelGenerator(this.scene, this.gameEnv);
-    this.assetsManager = assetsManager;
+    this.assetManagerService = assetsManager;
     this.player = player;
+    this.initialLevelData = initialLevelData; // Store the initial level data if provided
   }
 
   public disposeLevel(): void {
@@ -125,41 +132,50 @@ export class Level {
   public async loadBlanketFort() {
     console.log("adding blanket fort to assets manager");
 
-    const onSuccess = (task) => {
-      const heroMeshes = task.loadedMeshes;
-      const skeletons = task.loadedSkeletons;
-      const animationGroups = task.loadedAnimationGroups;
+    // const onSuccess = (task) => {
+    //   console.log(
+    //     "Blanket fort loaded successfully from assets manager placing it now "
+    //   );
+    //   // const heroMeshes = task.loadedMeshes;
+    //   // const skeletons = task.loadedSkeletons;
+    //   // const animationGroups = task.loadedAnimationGroups;
 
-      const hero = heroMeshes[0];
+    //   // const hero = heroMeshes[0];
 
-      hero.name = "hero";
+    //   // hero.name = "hero";
 
-      hero.scaling = new Vector3(15, 15, 15);
-      hero.rotate(new Vector3(0, 1, 0), Math.PI);
+    //   // hero.scaling = new Vector3(15, 15, 15);
+    //   // hero.rotate(new Vector3(0, 1, 0), Math.PI);
 
-      hero.position = new Vector3(0, 0, 0);
+    //   // hero.position = new Vector3(0, 0, 0);
 
-      // console.log("Hero: ", hero);
-      hero.getChildMeshes().forEach((m) => {
-        // console.log("child mesh: ", m);
-        const physicsAggregate = new PhysicsAggregate(
-          m,
-          PhysicsShapeType.MESH,
-          { mass: 0, friction: 1, restitution: 0 },
-          this.scene
-        );
+    //   // console.log("Hero: ", hero);
+    //   hero.getChildMeshes().forEach((m) => {
+    //     // console.log("child mesh: ", m);
+    //     const physicsAggregate = new PhysicsAggregate(
+    //       m,
+    //       PhysicsShapeType.MESH,
+    //       { mass: 0, friction: 1, restitution: 0 },
+    //       this.scene
+    //     );
 
-        this.gameEnv.addShadowsToMesh(m as Mesh);
-      });
-    };
-
-    addItemToAssetManager(
-      this.assetsManager,
+    //     this.gameEnv.addShadowsToMesh(m as Mesh);
+    //   });
+    // };
+    this.assetManagerService.addAssetToAssetManager(
       "/models/",
       "blanketFort.glb",
-      "blanketFort",
-      onSuccess
+      "blanketFort"
+      // onSuccess
     );
+
+    // addItemToAssetManager(
+    //   this.assetManagerService,
+    //   "/models/",
+    //   "blanketFort.glb",
+    //   "blanketFort",
+    //   onSuccess
+    // );
 
     //   const meshTask = this.assetsManager.addMeshTask(
     //     "blanketFort",
@@ -199,6 +215,51 @@ export class Level {
     //     resolve(); // Still resolve to prevent hanging
     //   };
     // });
+  }
+
+  private placeBlanketFort(): void {
+    const hero = this.assetManagerService.createModelInstance(
+      "blanketFort",
+      new Vector3(0, 0, 0),
+      15
+    );
+    if (!hero) {
+      console.error("Failed to load blanket fort model.");
+      return;
+    }
+
+    if (!hero) {
+      console.error("Blanket fort model not found in asset manager.");
+      return;
+    }
+
+    if (!hero.getChildMeshes().length || hero.getChildMeshes().length === 0) {
+      console.error("No child meshes found in blanket fort model.");
+      return;
+    }
+
+    const childMeshes = hero
+      .getChildMeshes()
+      .filter(
+        (childMesh) =>
+          childMesh instanceof Mesh && childMesh.getTotalVertices() > 0
+      );
+
+    hero.rotate(new Vector3(0, 1, 0), Math.PI);
+    hero.scaling.z = -hero.scaling.z;
+
+    hero.position = new Vector3(0, 0, 0);
+    childMeshes.forEach((m) => {
+      const physicsAggregate = new PhysicsAggregate(
+        m,
+        PhysicsShapeType.MESH,
+        { mass: 0, friction: 1, restitution: 0 },
+        this.scene
+      );
+
+      this.gameEnv.addShadowsToMesh(m as Mesh);
+      this.lvlObjs.push(m);
+    });
   }
 
   public generateRandomObjects(nbObjs: number): void {
@@ -336,150 +397,150 @@ export class Level {
     }
   }
 
-  private async loadAssetsKit(): Promise<void> {
-    // const p = "KayKit Mini-Game Variety Pack 1.2/Models/gltf";
-    const p = "kaykit";
+  // private async loadAssetsKit(): Promise<void> {
+  //   // const p = "KayKit Mini-Game Variety Pack 1.2/Models/gltf";
+  //   const p = "kaykit";
 
-    const modelFiles = [
-      "arrow_teamBlue.gltf.glb",
-      "arrow_teamRed.gltf.glb",
-      "arrow_teamYellow.gltf.glb",
-      "ball.gltf.glb",
-      "ball_teamBlue.gltf.glb",
-      "ball_teamRed.gltf.glb",
-      "ball_teamYellow.gltf.glb",
-      "barrierFloor.gltf.glb",
-      "barrierLadder.gltf.glb",
-      "barrierLarge.gltf.glb",
-      "barrierMedium.gltf.glb",
-      "barrierSmall.gltf.glb",
-      "barrierStrut.gltf.glb",
-      "blaster_teamBlue.gltf.glb",
-      "blaster_teamRed.gltf.glb",
-      "blaster_teamYellow.gltf.glb",
-      "bomb_teamBlue.gltf.glb",
-      "bomb_teamRed.gltf.glb",
-      "bomb_teamYellow.gltf.glb",
-      "bow_teamBlue.gltf.glb",
-      "bow_teamRed.gltf.glb",
-      "bow_teamYellow.gltf.glb",
-      "button_teamBlue.gltf.glb",
-      "button_teamRed.gltf.glb",
-      "button_teamYellow.gltf.glb",
-      "characer_duck.gltf.glb",
-      "character_bear.gltf.glb",
-      "character_dog.gltf.glb",
-      "detail_desert.gltf.glb",
-      "detail_forest.gltf.glb",
-      "diamond_teamBlue.gltf.glb",
-      "diamond_teamRed.gltf.glb",
-      "diamond_teamYellow.gltf.glb",
-      "flag_teamBlue.gltf.glb",
-      "flag_teamRed.gltf.glb",
-      "flag_teamYellow.gltf.glb",
-      "gateLargeWide_teamBlue.gltf.glb",
-      "gateLargeWide_teamRed.gltf.glb",
-      "gateLargeWide_teamYellow.gltf.glb",
-      "gateLarge_teamBlue.gltf.glb",
-      "gateLarge_teamRed.gltf.glb",
-      "gateLarge_teamYellow.gltf.glb",
-      "gateSmallWide_teamBlue.gltf.glb",
-      "gateSmallWide_teamRed.gltf.glb",
-      "gateSmallWide_teamYellow.gltf.glb",
-      "gateSmall_teamBlue.gltf.glb",
-      "gateSmall_teamRed.gltf.glb",
-      "gateSmall_teamYellow.gltf.glb",
-      "heart_teamBlue.gltf.glb",
-      "heart_teamRed.gltf.glb",
-      "heart_teamYellow.gltf.glb",
-      "hoop_teamBlue.gltf.glb",
-      "hoop_teamRed.gltf.glb",
-      "hoop_teamYellow.gltf.glb",
-      "lightning.gltf.glb",
-      "plantA_desert.gltf.glb",
-      "plantA_forest.gltf.glb",
-      "plantB_desert.gltf.glb",
-      "plantB_forest.gltf.glb",
-      "powerupBlock_teamBlue.gltf.glb",
-      "powerupBlock_teamRed.gltf.glb",
-      "powerupBlock_teamYellow.gltf.glb",
-      "powerupBomb.gltf.glb",
-      "ring_teamBlue.gltf.glb",
-      "ring_teamRed.gltf.glb",
-      "ring_teamYellow.gltf.glb",
-      "rocksA_desert.gltf.glb",
-      "rocksA_forest.gltf.glb",
-      "rocksB_desert.gltf.glb",
-      "rocksB_forest.gltf.glb",
-      "slingshot_teamBlue.gltf.glb",
-      "slingshot_teamRed.gltf.glb",
-      "slingshot_teamYellow.gltf.glb",
-      "spikeRoller.gltf.glb",
-      "star.gltf.glb",
-      "swiperDouble_teamBlue.gltf.glb",
-      "swiperDouble_teamRed.gltf.glb",
-      "swiperDouble_teamYellow.gltf.glb",
-      "swiperLong_teamBlue.gltf.glb",
-      "swiperLong_teamRed.gltf.glb",
-      "swiperLong_teamYellow.gltf.glb",
-      "swiper_teamBlue.gltf.glb",
-      "swiper_teamRed.gltf.glb",
-      "swiper_teamYellow.gltf.glb",
-      "sword_teamBlue.gltf.glb",
-      "sword_teamRed.gltf.glb",
-      "sword_teamYellow.gltf.glb",
-      "target.gltf.glb",
-      "targetStand.gltf.glb",
-      "tileHigh_desert.gltf.glb",
-      "tileHigh_forest.gltf.glb",
-      "tileHigh_teamBlue.gltf.glb",
-      "tileHigh_teamRed.gltf.glb",
-      "tileHigh_teamYellow.gltf.glb",
-      "tileLarge_desert.gltf.glb",
-      "tileLarge_forest.gltf.glb",
-      "tileLarge_teamBlue.gltf.glb",
-      "tileLarge_teamRed.gltf.glb",
-      "tileLarge_teamYellow.gltf.glb",
-      "tileLow_desert.gltf.glb",
-      "tileLow_forest.gltf.glb",
-      "tileLow_teamBlue.gltf.glb",
-      "tileLow_teamRed.gltf.glb",
-      "tileLow_teamYellow.gltf.glb",
-      "tileMedium_desert.gltf.glb",
-      "tileMedium_forest.gltf.glb",
-      "tileMedium_teamBlue.gltf.glb",
-      "tileMedium_teamRed.gltf.glb",
-      "tileMedium_teamYellow.gltf.glb",
-      "tileSlopeLowHigh_desert.gltf.glb",
-      "tileSlopeLowHigh_forest.gltf.glb",
-      "tileSlopeLowHigh_teamBlue.gltf.glb",
-      "tileSlopeLowHigh_teamRed.gltf.glb",
-      "tileSlopeLowHigh_teamYellow.gltf.glb",
-      "tileSlopeLowMedium_teamRed.gltf.glb",
-      "tileSlopeLowMedium_desert.gltf.glb",
-      "tileSlopeLowMedium_forest.gltf.glb",
-      "tileSlopeLowMedium_teamBlue.gltf.glb",
-      "tileSlopeLowMedium_teamYellow.gltf.glb",
-      "tileSlopeMediumHigh_desert.gltf.glb",
-      "tileSlopeMediumHigh_forest.gltf.glb",
-      "tileSlopeMediumHigh_teamBlue.gltf.glb",
-      "tileSlopeMediumHigh_teamRed.gltf.glb",
-      "tileSlopeMediumHigh_teamYellow.gltf.glb",
-      "tileSmall_desert.gltf.glb",
-      "tileSmall_forest.gltf.glb",
-      "tileSmall_teamBlue.gltf.glb",
-      "tileSmall_teamRed.gltf.glb",
-      "tileSmall_teamYellow.gltf.glb",
-      "tree_desert.gltf.glb",
-      "tree_forest.gltf.glb",
-    ];
+  //   const modelFiles = [
+  //     "arrow_teamBlue.gltf.glb",
+  //     "arrow_teamRed.gltf.glb",
+  //     "arrow_teamYellow.gltf.glb",
+  //     "ball.gltf.glb",
+  //     "ball_teamBlue.gltf.glb",
+  //     "ball_teamRed.gltf.glb",
+  //     "ball_teamYellow.gltf.glb",
+  //     "barrierFloor.gltf.glb",
+  //     "barrierLadder.gltf.glb",
+  //     "barrierLarge.gltf.glb",
+  //     "barrierMedium.gltf.glb",
+  //     "barrierSmall.gltf.glb",
+  //     "barrierStrut.gltf.glb",
+  //     "blaster_teamBlue.gltf.glb",
+  //     "blaster_teamRed.gltf.glb",
+  //     "blaster_teamYellow.gltf.glb",
+  //     "bomb_teamBlue.gltf.glb",
+  //     "bomb_teamRed.gltf.glb",
+  //     "bomb_teamYellow.gltf.glb",
+  //     "bow_teamBlue.gltf.glb",
+  //     "bow_teamRed.gltf.glb",
+  //     "bow_teamYellow.gltf.glb",
+  //     "button_teamBlue.gltf.glb",
+  //     "button_teamRed.gltf.glb",
+  //     "button_teamYellow.gltf.glb",
+  //     "characer_duck.gltf.glb",
+  //     "character_bear.gltf.glb",
+  //     "character_dog.gltf.glb",
+  //     "detail_desert.gltf.glb",
+  //     "detail_forest.gltf.glb",
+  //     "diamond_teamBlue.gltf.glb",
+  //     "diamond_teamRed.gltf.glb",
+  //     "diamond_teamYellow.gltf.glb",
+  //     "flag_teamBlue.gltf.glb",
+  //     "flag_teamRed.gltf.glb",
+  //     "flag_teamYellow.gltf.glb",
+  //     "gateLargeWide_teamBlue.gltf.glb",
+  //     "gateLargeWide_teamRed.gltf.glb",
+  //     "gateLargeWide_teamYellow.gltf.glb",
+  //     "gateLarge_teamBlue.gltf.glb",
+  //     "gateLarge_teamRed.gltf.glb",
+  //     "gateLarge_teamYellow.gltf.glb",
+  //     "gateSmallWide_teamBlue.gltf.glb",
+  //     "gateSmallWide_teamRed.gltf.glb",
+  //     "gateSmallWide_teamYellow.gltf.glb",
+  //     "gateSmall_teamBlue.gltf.glb",
+  //     "gateSmall_teamRed.gltf.glb",
+  //     "gateSmall_teamYellow.gltf.glb",
+  //     "heart_teamBlue.gltf.glb",
+  //     "heart_teamRed.gltf.glb",
+  //     "heart_teamYellow.gltf.glb",
+  //     "hoop_teamBlue.gltf.glb",
+  //     "hoop_teamRed.gltf.glb",
+  //     "hoop_teamYellow.gltf.glb",
+  //     "lightning.gltf.glb",
+  //     "plantA_desert.gltf.glb",
+  //     "plantA_forest.gltf.glb",
+  //     "plantB_desert.gltf.glb",
+  //     "plantB_forest.gltf.glb",
+  //     "powerupBlock_teamBlue.gltf.glb",
+  //     "powerupBlock_teamRed.gltf.glb",
+  //     "powerupBlock_teamYellow.gltf.glb",
+  //     "powerupBomb.gltf.glb",
+  //     "ring_teamBlue.gltf.glb",
+  //     "ring_teamRed.gltf.glb",
+  //     "ring_teamYellow.gltf.glb",
+  //     "rocksA_desert.gltf.glb",
+  //     "rocksA_forest.gltf.glb",
+  //     "rocksB_desert.gltf.glb",
+  //     "rocksB_forest.gltf.glb",
+  //     "slingshot_teamBlue.gltf.glb",
+  //     "slingshot_teamRed.gltf.glb",
+  //     "slingshot_teamYellow.gltf.glb",
+  //     "spikeRoller.gltf.glb",
+  //     "star.gltf.glb",
+  //     "swiperDouble_teamBlue.gltf.glb",
+  //     "swiperDouble_teamRed.gltf.glb",
+  //     "swiperDouble_teamYellow.gltf.glb",
+  //     "swiperLong_teamBlue.gltf.glb",
+  //     "swiperLong_teamRed.gltf.glb",
+  //     "swiperLong_teamYellow.gltf.glb",
+  //     "swiper_teamBlue.gltf.glb",
+  //     "swiper_teamRed.gltf.glb",
+  //     "swiper_teamYellow.gltf.glb",
+  //     "sword_teamBlue.gltf.glb",
+  //     "sword_teamRed.gltf.glb",
+  //     "sword_teamYellow.gltf.glb",
+  //     "target.gltf.glb",
+  //     "targetStand.gltf.glb",
+  //     "tileHigh_desert.gltf.glb",
+  //     "tileHigh_forest.gltf.glb",
+  //     "tileHigh_teamBlue.gltf.glb",
+  //     "tileHigh_teamRed.gltf.glb",
+  //     "tileHigh_teamYellow.gltf.glb",
+  //     "tileLarge_desert.gltf.glb",
+  //     "tileLarge_forest.gltf.glb",
+  //     "tileLarge_teamBlue.gltf.glb",
+  //     "tileLarge_teamRed.gltf.glb",
+  //     "tileLarge_teamYellow.gltf.glb",
+  //     "tileLow_desert.gltf.glb",
+  //     "tileLow_forest.gltf.glb",
+  //     "tileLow_teamBlue.gltf.glb",
+  //     "tileLow_teamRed.gltf.glb",
+  //     "tileLow_teamYellow.gltf.glb",
+  //     "tileMedium_desert.gltf.glb",
+  //     "tileMedium_forest.gltf.glb",
+  //     "tileMedium_teamBlue.gltf.glb",
+  //     "tileMedium_teamRed.gltf.glb",
+  //     "tileMedium_teamYellow.gltf.glb",
+  //     "tileSlopeLowHigh_desert.gltf.glb",
+  //     "tileSlopeLowHigh_forest.gltf.glb",
+  //     "tileSlopeLowHigh_teamBlue.gltf.glb",
+  //     "tileSlopeLowHigh_teamRed.gltf.glb",
+  //     "tileSlopeLowHigh_teamYellow.gltf.glb",
+  //     "tileSlopeLowMedium_teamRed.gltf.glb",
+  //     "tileSlopeLowMedium_desert.gltf.glb",
+  //     "tileSlopeLowMedium_forest.gltf.glb",
+  //     "tileSlopeLowMedium_teamBlue.gltf.glb",
+  //     "tileSlopeLowMedium_teamYellow.gltf.glb",
+  //     "tileSlopeMediumHigh_desert.gltf.glb",
+  //     "tileSlopeMediumHigh_forest.gltf.glb",
+  //     "tileSlopeMediumHigh_teamBlue.gltf.glb",
+  //     "tileSlopeMediumHigh_teamRed.gltf.glb",
+  //     "tileSlopeMediumHigh_teamYellow.gltf.glb",
+  //     "tileSmall_desert.gltf.glb",
+  //     "tileSmall_forest.gltf.glb",
+  //     "tileSmall_teamBlue.gltf.glb",
+  //     "tileSmall_teamRed.gltf.glb",
+  //     "tileSmall_teamYellow.gltf.glb",
+  //     "tree_desert.gltf.glb",
+  //     "tree_forest.gltf.glb",
+  //   ];
 
-    // the 5 first models
-    // const modelsToLoad = modelFiles.slice(0, 5);
-    this.loadModels(p, modelFiles).then(() => {
-      console.log("Models loaded successfully!");
-    });
-  }
+  //   // the 5 first models
+  //   // const modelsToLoad = modelFiles.slice(0, 5);
+  //   this.loadModels(p, modelFiles).then(() => {
+  //     console.log("Models loaded successfully!");
+  //   });
+  // }
 
   loadSpikeRoller(): void {
     console.log("adding spike roller to assets manager");
@@ -515,13 +576,20 @@ export class Level {
       }
     };
 
-    addItemToAssetManager(
-      this.assetsManager,
+    this.assetManagerService.addAssetToAssetManager(
       "/kaykit/",
       "spikeRoller.gltf.glb",
       "spikeRoller",
       onSuccess
     );
+
+    // addItemToAssetManager(
+    //   this.assetManagerService,
+    //   "/kaykit/",
+    //   "spikeRoller.gltf.glb",
+    //   "spikeRoller",
+    //   onSuccess
+    // );
   }
 
   // NEED TO FIX WITH A LIGHTER GLB MODEL
@@ -665,13 +733,20 @@ export class Level {
       this.lvlObjs.push(hero);
     };
 
-    addItemToAssetManager(
-      this.assetsManager,
+    this.assetManagerService.addAssetToAssetManager(
       "/kaykit/",
-      "swiperLong_teamBlue.gltf.glb",
+      "swiper_teamBlue.gltf.glb", //"swiperLong_teamBlue.gltf.glb",
       "swiper",
       onSuccess
     );
+
+    // addItemToAssetManager(
+    //   this.assetManagerService,
+    //   "/kaykit/",
+    //   "swiperLong_teamBlue.gltf.glb",
+    //   "swiper",
+    //   onSuccess
+    // );
   }
 
   public loadBoudin(speed: number = 1): void {
@@ -710,13 +785,20 @@ export class Level {
       this.lvlObjs.push(hero);
     };
 
-    addItemToAssetManager(
-      this.assetsManager,
+    this.assetManagerService.addAssetToAssetManager(
       "/kaykit/",
       "swiperLong_teamBlue.gltf.glb",
       "swiper",
       onSuccess
     );
+
+    // addItemToAssetManager(
+    //   this.assetManagerService,
+    //   "/kaykit/",
+    //   "swiperLong_teamBlue.gltf.glb",
+    //   "swiper",
+    //   onSuccess
+    // );
   }
 
   public async swiperGame(speed: number = 1): Promise<void> {
@@ -786,52 +868,68 @@ export class Level {
       }
     };
 
-    addItemToAssetManager(
-      this.assetsManager,
+    this.assetManagerService.addAssetToAssetManager(
       "/models/",
       "grid_map_f1.glb",
       "footMap",
       onSuccess
     );
+
+    // addItemToAssetManager(
+    //   this.assetManagerService,
+    //   "/models/",
+    //   "grid_map_f1.glb",
+    //   "footMap",
+    //   onSuccess
+    // );
   }
 
-  public async initLevel(assetsManager: AssetsManager): Promise<void> {
+  public async initLevel(assetManager: AssetManagerService): Promise<void> {
     console.log("init Level...");
-    // this.scene.debugLayer.show();
 
-    this.generateWalls();
+    if (this.initialLevelData) {
+      console.log("Initializing level from provided test data.");
+      const lvlFromFile = new levelFromFile(
+        this.scene,
+        this.gameEnv,
+        this.player,
+        this.assetManagerService,
+        this.initialLevelData // Pass the parsed data here
+      );
 
-    this.loadBlanketFort();
+      await lvlFromFile.load();
+      // Wait for assets loaded by levelFromFile's assetManager
+      // await lvlFromFile.assetManager.loadAssetsAsync();
+    } else {
+      // Default level loading if no test data is provided
+      this.generateWalls();
+      this.loadBlanketFort();
+      // this.loadSpikeRoller();
+      this.createPillowProgrammatically();
+      this.lvlGen.generateStairs();
+      this.lvlGen.generateSlopes();
+      this.lvlGen.generatePlatforms();
+      this.physicsPlane();
 
-    this.loadSpikeRoller();
-    // this.loadTestMap();
-    // this.loadSwiper();
-    // this.loadPillow();
-    this.createPillowProgrammatically();
+      // Loading the new added assets if any
+      await this.assetManagerService.loadAssetsAsync();
 
-    // this.loadBoudin();
+      this.placeBlanketFort();
 
-    // await this.loadAssetsKit();
-
-    // Generate predefined objs
-    this.lvlGen.generateStairs();
-    this.lvlGen.generateSlopes();
-    this.lvlGen.generatePlatforms();
-    this.physicsPlane();
-
-    // this.lvlObjs = this.lvlGen.getGeneratedObjects();
-
-    // making it assync to wait for the assets to be loaded
-    await new Promise<void>((resolve) => {
-      assetsManager.onFinish = () => resolve();
-      assetsManager.load();
-    });
-    const lvlFromFile = new levelFromFile(
-      this.scene,
-      this.gameEnv,
-      this.player
-    );
-
+      // // making it async to wait for the assets to be loaded
+      // await new Promise<void>((resolve) => {
+      //   assetManager.onFinish = () => resolve();
+      //   assetManager.load();
+      // });
+      // Potentially load a default level from file if desired for normal PLAY mode
+      // const lvlFromFile = new levelFromFile(this.scene, this.gameEnv, this.player);
+      const lvlFromFile = new levelFromFile(
+        this.scene,
+        this.gameEnv,
+        this.player,
+        this.assetManagerService
+      );
+    }
     console.log("Level Loaded!");
   }
 }

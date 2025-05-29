@@ -21,9 +21,7 @@ import {
 } from "@babylonjs/gui";
 
 import { UIComponentsFactory } from "./UIComponents";
-import { AssetManagerService } from "./AssetManager";
 import { ObjectController } from "./ObjectController";
-import { SceneSerializer } from "./SceneSerializer";
 import { LevelCreatorUI } from "./UI";
 
 export class selectedMeshUI {
@@ -1593,7 +1591,7 @@ export class selectedMeshUI {
             0.5
           );
           // Add a Y offset to make it visible
-          midPoint.y += 5;
+          // midPoint.y += 5;
           this.objectController.addControlPoint(meshId, midPoint);
         } else {
           // Find the longest segment and add a point there
@@ -1616,7 +1614,7 @@ export class selectedMeshUI {
           const nextPoint = controlPoints[insertIndex];
           const newPos = Vector3.Lerp(prevPoint, nextPoint, 0.5);
           // Add a Y offset to make it visible
-          newPos.y += 3;
+          // newPos.y += 3;
 
           // Add new point at calculated position
           this.objectController.addControlPoint(meshId, newPos, insertIndex);

@@ -1,4 +1,10 @@
-import { Color3, PBRMaterial, Scene, StandardMaterial } from "@babylonjs/core";
+import {
+  Color3,
+  PBRMaterial,
+  Scene,
+  StandardMaterial,
+  Texture,
+} from "@babylonjs/core";
 
 export function getRandomColor(): [Color3, string] {
   const num = Math.floor(Math.random() * 16777215).toString(16);
@@ -30,4 +36,31 @@ export function getPBRMaterial(
   pbr.subSurface.indexOfRefraction = 1.8;
 
   return pbr;
+}
+
+import { FurMaterial } from "@babylonjs/materials";
+
+export function getFurMaterial(
+  scene: Scene,
+  highLevelFur = false,
+  furLength = 0.2,
+  furAngle = Math.PI / 6,
+  furColor = new Color3(1, 1, 1),
+  furDiffuseTextureImg = "./textures/bluePinkFur.jpg"
+): FurMaterial {
+  const fur = new FurMaterial("furT", scene);
+  fur.highLevelFur = highLevelFur;
+  fur.furLength = furLength;
+  fur.furAngle = furAngle;
+  // fur.furAngle = 0;
+  fur.furColor = furColor;
+  // fur.furSpacing = 6;
+  // fur.furDensity = 100;
+  // fur.furSpeed = 200;
+  // fur.furGravity = new Vector3(0, -1, 0);
+  fur.furTexture = FurMaterial.GenerateTexture("furTexture", scene);
+  fur.diffuseTexture = new Texture(furDiffuseTextureImg, scene);
+  // fur.furTexture = FurMaterial.GenerateTexture("furTexture", scene);
+
+  return fur;
 }

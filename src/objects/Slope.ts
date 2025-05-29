@@ -100,11 +100,11 @@ class Slope extends GameObject {
     );
   }
 
-  public dispose() {
-    this.physicsAggregate.dispose();
-    this.environment.removeShadowsFromMesh(this.slope);
-    this.slope.dispose();
-  }
+  // public dispose() {
+  //   this.physicsAggregate.dispose();
+  //   this.environment.removeShadowsFromMesh(this.slope);
+  //   this.slope.dispose();
+  // }
 }
 
 export { Slope };

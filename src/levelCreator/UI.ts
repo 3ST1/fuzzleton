@@ -21,7 +21,7 @@ import {
 } from "@babylonjs/gui";
 
 import { UIComponentsFactory } from "./UIComponents";
-import { AssetManagerService } from "./AssetManager";
+import { AssetManagerService } from "../AssetManagerService";
 import { ObjectController } from "./ObjectController";
 import { SceneSerializer } from "./SceneSerializer";
 
@@ -40,11 +40,15 @@ export interface UIEvents {
   onLoadScene: () => Promise<void>;
   onBackToMenu: () => void;
   onModelSelected: (modelId: string) => void;
+  onTestLevel: () => Promise<void>;
 }
 
 export class LevelCreatorUI {
+  public editorUI: AdvancedDynamicTexture;
+  private loadingScreen!: Rectangle;
+  private loadingText!: TextBlock;
+
   // UI properties
-  editorUI: AdvancedDynamicTexture;
   private modelSidebar!: Rectangle;
   private saveLoadPanel: Rectangle | null = null;
   private snapToggleBtn: Checkbox | null = null;
@@ -78,10 +82,55 @@ export class LevelCreatorUI {
     this.events = events;
 
     // Create fullscreen UI
-    this.editorUI = AdvancedDynamicTexture.CreateFullscreenUI("editorUI");
+    this.editorUI = AdvancedDynamicTexture.CreateFullscreenUI(
+      "editorUI",
+      true,
+      scene
+    );
+
+    // Initialize loading screen (hidden by default)
+    this.createLoadingScreen();
 
     // Initialize UI components
     this.setupUI();
+  }
+
+  // Create a loading screen that can be shown when needed
+  private createLoadingScreen(): void {
+    // Create container for loading screen
+    this.loadingScreen = new Rectangle("loadingScreen");
+    this.loadingScreen.width = "100%";
+    this.loadingScreen.height = "100%";
+    this.loadingScreen.background = "rgba(0, 0, 0, 0.7)";
+    this.loadingScreen.isVisible = false;
+    this.editorUI.addControl(this.loadingScreen);
+
+    // Add loading text
+    this.loadingText = new TextBlock("loadingText", "Loading...");
+    this.loadingText.color = "white";
+    this.loadingText.fontSize = 24;
+    this.loadingText.fontWeight = "bold";
+    this.loadingScreen.addControl(this.loadingText);
+  }
+
+  // Method to initialize and get the editor UI
+  public getEditorUI(): AdvancedDynamicTexture {
+    return this.editorUI;
+  }
+
+  // Show loading screen
+  public displayLoadingUI(message: string = "Loading..."): void {
+    if (this.loadingScreen) {
+      this.loadingText.text = message;
+      this.loadingScreen.isVisible = true;
+    }
+  }
+
+  // Hide loading screen
+  public hideLoadingUI(): void {
+    if (this.loadingScreen) {
+      this.loadingScreen.isVisible = false;
+    }
   }
 
   private setupUI(): void {
@@ -96,11 +145,9 @@ export class LevelCreatorUI {
 
     // Create save/load panel
     this.createSaveLoadPanel();
-  }
 
-  // Method to initialize and get the editor UI
-  public getEditorUI(): AdvancedDynamicTexture {
-    return this.editorUI;
+    // Create a button to test the level being created
+    this.createTestLevelButton();
   }
 
   private createBackButton(): void {
@@ -218,6 +265,43 @@ export class LevelCreatorUI {
     loadButton.background = "blue";
     loadButton.onPointerClickObservable.add(() => this.events.onLoadScene());
     stackPanel.addControl(loadButton);
+  }
+
+  private createTestLevelButton(): void {
+    // This button can be part of the saveLoadPanel or a new panel
+    if (!this.saveLoadPanel) {
+      console.warn(
+        "Save/Load panel not initialized, cannot add Test Level button yet."
+      );
+      return;
+    }
+
+    // Assuming saveLoadPanel uses a StackPanel named "saveLoadStack"
+    const stackPanel = this.saveLoadPanel.getChildByName(
+      "saveLoadStack"
+    ) as StackPanel;
+    if (!stackPanel) {
+      console.error(
+        "Could not find stackPanel in saveLoadPanel to add Test Level button."
+      );
+      return;
+    }
+
+    stackPanel.addControl(UIComponentsFactory.createSpacing(5));
+
+    const testButton = Button.CreateSimpleButton(
+      "testLevelButton",
+      "Test Level"
+    );
+    testButton.width = "200px";
+    testButton.height = "30px";
+    testButton.color = "black";
+    testButton.cornerRadius = 5;
+    testButton.background = "yellow"; // Distinct color
+    testButton.onPointerClickObservable.add(async () => {
+      await this.events.onTestLevel();
+    });
+    stackPanel.addControl(testButton);
   }
 
   public createModelSidebar(modelFiles: string[]): void {
@@ -397,5 +481,30 @@ export class LevelCreatorUI {
 
   public promptForSceneName(): string | null {
     return prompt("Enter a name for your scene:", this.sceneName);
+  }
+
+  public dispose(): void {
+    // Dispose of the editor UI
+    if (this.editorUI) {
+      this.editorUI.dispose();
+    }
+
+    // Dispose of the loading screen
+    if (this.loadingScreen) {
+      this.loadingScreen.dispose();
+    }
+
+    // Dispose of the model sidebar
+    if (this.modelSidebar) {
+      this.modelSidebar.dispose();
+    }
+
+    // Clear event handlers
+    this.events = {} as UIEvents;
+
+    // Clear references to avoid memory leaks
+    this.scene = null as any;
+    this.ground = null as any;
+    this.gridMesh = null;
   }
 }
