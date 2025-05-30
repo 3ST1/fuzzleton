@@ -19,12 +19,12 @@ import {
   PhysicsMaterial,
 } from "@babylonjs/core";
 // import { Debug } from "@babylonjs/inspector";
-import { AssetManagerService } from "../levelCreator/AssetManager";
+import { AssetManagerService } from "../AssetManagerService";
 import { ObjectController } from "../levelCreator/ObjectController";
 import { GameEnvironment } from "../GameEnvironnement";
 import PlayerController from "../player/thirdPersonController";
 // TO TEST / DEBUG
-const meshesDocData = {
+const meshesDocDataExemple = {
   name: "MyLevel",
   meshes: [
     {
@@ -265,6 +265,7 @@ const meshesDocData = {
     version: "0.3",
   },
 };
+//////////////////////////////::
 
 export class levelFromFile {
   scene: Scene;
@@ -273,20 +274,38 @@ export class levelFromFile {
   addedAssets: any[] = [];
   gameEnv: GameEnvironment;
   player: PlayerController;
+  meshesDoc: any;
 
   constructor(
     scene: Scene,
     gameEnv: GameEnvironment,
     player: PlayerController,
-    meshesDoc: any = meshesDocData
+    assetManager: AssetManagerService,
+    meshesDoc: any = meshesDocDataExemple // this receives the parsed JSON created in the levelCreator (see meshesDocDataExemple above for example)
   ) {
     this.scene = scene;
     this.gameEnv = gameEnv;
     this.player = player;
-    this.assetManager = new AssetManagerService(scene);
-    this.assetManager.initializeAssetsManager(this.scene);
-    this.addNeededAssetsToTheAssetManager(meshesDoc);
-    this.loadLevel(meshesDoc);
+    // // this.assetManager = new AssetManagerService(scene);
+    this.assetManager = assetManager;
+    this.meshesDoc = meshesDoc;
+
+    // For simplicity wee let levelFromFile manage its own assets for now (but later we should probably pass the asset manager from the gameEnv so we load them only once)
+    // this.assetManager.initializeAssetsManager(this.scene);
+
+    // using the already in use asset manager to load the level
+    // this.assetManager.changeScene(scene);
+  }
+
+  public async load() {
+    if (this.meshesDoc) {
+      // if meshesDoc data provided we load the level
+      console.log("Loading level from meshesDoc:", this.meshesDoc);
+      this.addNeededAssetsToTheAssetManager(this.meshesDoc);
+      await this.loadLevel(this.meshesDoc); // This will call assetManager.loadAssetsAsync()
+    } else {
+      console.warn("levelFromFile: No meshesDoc provided to load.");
+    }
   }
 
   addNeededAssetsToTheAssetManager(meshesDoc: any) {
@@ -316,7 +335,9 @@ export class levelFromFile {
   }
 
   private loadModelMesh(meshData: any): Mesh | null | undefined {
-    console.log(`Creating model mesh with ID: ${meshData.modelId}`);
+    console.warn(
+      `levelFromFile : Creating model mesh with ID: ${meshData.modelId}`
+    );
     // Check if model exists or find alternative
     const modelId = this.assetManager.checkIfModelIdExist(meshData.modelId);
 
@@ -329,22 +350,20 @@ export class levelFromFile {
 
     return this.assetManager.createModelInstance(
       modelId,
-      new Vector3(
-        meshData.position.x,
-        meshData.position.y,
-        meshData.position.z
-      ),
-      this.scene,
-      false,
-      0,
-      false
+      new Vector3(meshData.position.x, meshData.position.y, meshData.position.z)
+      // this.scene,
+      // false,
+      // 0,
+      // false
     );
   }
 
   async loadLevel(meshesDoc: any) {
-    console.log("Loading level...");
+    console.warn("Loading level from file : ", meshesDoc);
+    // await this.assetManager.loadAssetsAsync(this.scene);
     await this.assetManager.loadAssetsAsync();
     meshesDoc.meshes.forEach((meshData: any) => {
+      console.warn("Loading mesh data: ", meshData);
       if (meshData.type === "model") {
         const newMesh = this.loadModelMesh(meshData);
         console.warn("mesh returned : ", newMesh);
@@ -359,7 +378,10 @@ export class levelFromFile {
   }
 
   public applyMeshProperties(mesh: Mesh, meshData: any): void {
-    console.log(`Successfully created mesh: ${mesh.name}`);
+    console.warn(
+      `levelFromFile.ts : Applying properties to mesh: ${mesh.name} with ID: ${meshData.id}`
+    );
+    // console.log(`Successfully created mesh: ${mesh.name}`);
 
     // Set properties from saved data
     mesh.scaling = new Vector3(
@@ -659,9 +681,9 @@ export class levelFromFile {
       console.warn(`No geometry found for physics in ${mesh.name}`);
       return;
     }
-    console.warn("metatdat : ", meshData);
+    // console.warn("debug metatdat : ", meshData);
     if (meshData.rotation_animation && meshData.rotation_animation?.enabled) {
-      console.warn("CREATING A ROTATING MESH");
+      // console.warn("CREATING A ROTATING MESH");
       childMeshes.forEach((child) => {
         const physicsAggregate = new PhysicsAggregate(
           child,
@@ -676,8 +698,17 @@ export class levelFromFile {
 
         physicsAggregate.body.disablePreStep = false;
         physicsAggregate.body.setMotionType(PhysicsMotionType.ANIMATED);
+
         this.scene.registerBeforeRender(() => {
-          child.rotate(new Vector3(0, 1, 0), 1 * 0.01);
+          // child.rotate(new Vector3(0, 1, 0), 1 * 0.01);
+          child.rotate(
+            new Vector3(
+              meshData.rotation_animation.axis.x,
+              meshData.rotation_animation.axis.y,
+              meshData.rotation_animation.axis.z
+            ),
+            1 * meshData.rotation_animation.speed
+          );
         });
       });
       // physicsAggregate.body.setMotionType(PhysicsMotionType.ANIMATED);

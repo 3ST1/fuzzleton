@@ -65,10 +65,10 @@ class Wall extends GameObject {
     environment.addShadowsToMesh(this.wall);
   }
 
-  public dispose() {
-    this.physicsAggregate.dispose();
-    this.wall.dispose();
-  }
+  // public dispose() {
+  //   this.physicsAggregate.dispose();
+  //   this.wall.dispose();
+  // }
 }
 
 export { Wall };

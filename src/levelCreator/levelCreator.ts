@@ -17,21 +17,21 @@ import {
   Quaternion,
 } from "@babylonjs/core";
 import "@babylonjs/loaders/glTF";
-
 import { LevelCreatorUI, UIEvents } from "./UI";
-import { AssetManagerService } from "./AssetManager";
-import { UIComponentsFactory } from "./UIComponents";
+import { AssetManagerService } from "../AssetManagerService";
 import { MeshUtils } from "./MeshUtils";
 import { ObjectController } from "./ObjectController";
 import { ModelManager } from "./ModelManager";
 import { SceneSerializer } from "./SceneSerializer";
-
+import { modelFiles } from "./assetsLinks";
+import App, { GameState } from "../App";
+// import { SceneSerializer } from "../levelCreator/SceneSerializer";
 class LevelCreator {
   // Core properties
   private canvas: HTMLCanvasElement;
   private engine: Engine;
-  private lvlCreatorScene: Scene;
-  private backToMenu: () => void;
+  public lvlCreatorScene: Scene;
+
   private lvlCreatorCamera!: ArcRotateCamera;
   private light!: HemisphericLight;
 
@@ -59,165 +59,44 @@ class LevelCreator {
 
   // UI
   private ui: LevelCreatorUI;
+  modelFiles: string[];
 
-  // Model files to load
-  private modelFiles: string[] = [
-    "arrow_teamBlue.gltf.glb",
-    "arrow_teamRed.gltf.glb",
-    "arrow_teamYellow.gltf.glb",
-    "ball.gltf.glb",
-    "ball_teamBlue.gltf.glb",
-    "ball_teamRed.gltf.glb",
-    "ball_teamYellow.gltf.glb",
-    "barrierFloor.gltf.glb",
-    "barrierLadder.gltf.glb",
-    "barrierLarge.gltf.glb",
-    "barrierMedium.gltf.glb",
-    "barrierSmall.gltf.glb",
-    "barrierStrut.gltf.glb",
-    "blaster_teamBlue.gltf.glb",
-    "blaster_teamRed.gltf.glb",
-    "blaster_teamYellow.gltf.glb",
-    "bomb_teamBlue.gltf.glb",
-    "bomb_teamRed.gltf.glb",
-    "bomb_teamYellow.gltf.glb",
-    "bow_teamBlue.gltf.glb",
-    "bow_teamRed.gltf.glb",
-    "bow_teamYellow.gltf.glb",
-    "button_teamBlue.gltf.glb",
-    "button_teamRed.gltf.glb",
-    "button_teamYellow.gltf.glb",
-    "characer_duck.gltf.glb",
-    "character_bear.gltf.glb",
-    "character_dog.gltf.glb",
-    "detail_desert.gltf.glb",
-    "detail_forest.gltf.glb",
-    "diamond_teamBlue.gltf.glb",
-    "diamond_teamRed.gltf.glb",
-    "diamond_teamYellow.gltf.glb",
-    "flag_teamBlue.gltf.glb",
-    "flag_teamRed.gltf.glb",
-    "flag_teamYellow.gltf.glb",
-    "gateLargeWide_teamBlue.gltf.glb",
-    "gateLargeWide_teamRed.gltf.glb",
-    "gateLargeWide_teamYellow.gltf.glb",
-    "gateLarge_teamBlue.gltf.glb",
-    "gateLarge_teamRed.gltf.glb",
-    "gateLarge_teamYellow.gltf.glb",
-    "gateSmallWide_teamBlue.gltf.glb",
-    "gateSmallWide_teamRed.gltf.glb",
-    "gateSmallWide_teamYellow.gltf.glb",
-    "gateSmall_teamBlue.gltf.glb",
-    "gateSmall_teamRed.gltf.glb",
-    "gateSmall_teamYellow.gltf.glb",
-    "heart_teamBlue.gltf.glb",
-    "heart_teamRed.gltf.glb",
-    "heart_teamYellow.gltf.glb",
-    "hoop_teamBlue.gltf.glb",
-    "hoop_teamRed.gltf.glb",
-    "hoop_teamYellow.gltf.glb",
-    "lightning.gltf.glb",
-    "plantA_desert.gltf.glb",
-    "plantA_forest.gltf.glb",
-    "plantB_desert.gltf.glb",
-    "plantB_forest.gltf.glb",
-    "powerupBlock_teamBlue.gltf.glb",
-    "powerupBlock_teamRed.gltf.glb",
-    "powerupBlock_teamYellow.gltf.glb",
-    "powerupBomb.gltf.glb",
-    "ring_teamBlue.gltf.glb",
-    "ring_teamRed.gltf.glb",
-    "ring_teamYellow.gltf.glb",
-    "rocksA_desert.gltf.glb",
-    "rocksA_forest.gltf.glb",
-    "rocksB_desert.gltf.glb",
-    "rocksB_forest.gltf.glb",
-    "slingshot_teamBlue.gltf.glb",
-    "slingshot_teamRed.gltf.glb",
-    "slingshot_teamYellow.gltf.glb",
-    "spikeRoller.gltf.glb",
-    "star.gltf.glb",
-    "swiperDouble_teamBlue.gltf.glb",
-    "swiperDouble_teamRed.gltf.glb",
-    "swiperDouble_teamYellow.gltf.glb",
-    "swiperLong_teamBlue.gltf.glb",
-    "swiperLong_teamRed.gltf.glb",
-    "swiperLong_teamYellow.gltf.glb",
-    "swiper_teamBlue.gltf.glb",
-    "swiper_teamRed.gltf.glb",
-    "swiper_teamYellow.gltf.glb",
-    "sword_teamBlue.gltf.glb",
-    "sword_teamRed.gltf.glb",
-    "sword_teamYellow.gltf.glb",
-    "target.gltf.glb",
-    "targetStand.gltf.glb",
-    "tileHigh_desert.gltf.glb",
-    "tileHigh_forest.gltf.glb",
-    "tileHigh_teamBlue.gltf.glb",
-    "tileHigh_teamRed.gltf.glb",
-    "tileHigh_teamYellow.gltf.glb",
-    "tileLarge_desert.gltf.glb",
-    "tileLarge_forest.gltf.glb",
-    "tileLarge_teamBlue.gltf.glb",
-    "tileLarge_teamRed.gltf.glb",
-    "tileLarge_teamYellow.gltf.glb",
-    "tileLow_desert.gltf.glb",
-    "tileLow_forest.gltf.glb",
-    "tileLow_teamBlue.gltf.glb",
-    "tileLow_teamRed.gltf.glb",
-    "tileLow_teamYellow.gltf.glb",
-    "tileMedium_desert.gltf.glb",
-    "tileMedium_forest.gltf.glb",
-    "tileMedium_teamBlue.gltf.glb",
-    "tileMedium_teamRed.gltf.glb",
-    "tileMedium_teamYellow.gltf.glb",
-    "tileSlopeLowHigh_desert.gltf.glb",
-    "tileSlopeLowHigh_forest.gltf.glb",
-    "tileSlopeLowHigh_teamBlue.gltf.glb",
-    "tileSlopeLowHigh_teamRed.gltf.glb",
-    "tileSlopeLowHigh_teamYellow.gltf.glb",
-    "tileSlopeLowMedium_teamRed.gltf.glb",
-    "tileSlopeLowMedium_desert.gltf.glb",
-    "tileSlopeLowMedium_forest.gltf.glb",
-    "tileSlopeLowMedium_teamBlue.gltf.glb",
-    "tileSlopeLowMedium_teamYellow.gltf.glb",
-    "tileSlopeMediumHigh_desert.gltf.glb",
-    "tileSlopeMediumHigh_forest.gltf.glb",
-    "tileSlopeMediumHigh_teamBlue.gltf.glb",
-    "tileSlopeMediumHigh_teamRed.gltf.glb",
-    "tileSlopeMediumHigh_teamYellow.gltf.glb",
-    "tileSmall_desert.gltf.glb",
-    "tileSmall_forest.gltf.glb",
-    "tileSmall_teamBlue.gltf.glb",
-    "tileSmall_teamRed.gltf.glb",
-    "tileSmall_teamYellow.gltf.glb",
-    "tree_desert.gltf.glb",
-    "tree_forest.gltf.glb",
-  ];
+  app: App;
 
   constructor(
     canvas: HTMLCanvasElement,
     engine: Engine,
-    backToMenu: () => void
+    scene: Scene,
+    app: App, // App instance
+    sceneData: any | null = null // Serialized scene data
   ) {
     this.canvas = canvas;
     this.engine = engine;
-    this.backToMenu = backToMenu;
+    this.app = app;
+
+    // Initialize model files from imported hosted in my own vps cloud storage
+    this.modelFiles = modelFiles;
 
     // Initialize scene
-    this.lvlCreatorScene = this.createScene();
+    this.lvlCreatorScene = this.createScene(scene);
+
+    // set the passed asset manager and set the scene to it
+    this.assetManager = new AssetManagerService(this.lvlCreatorScene);
+    // this.assetManager = app.assetManagerService;
+    // this.assetManager.changeScene(this.lvlCreatorScene);
 
     // Initialize services
-    this.assetManager = new AssetManagerService(this.lvlCreatorScene);
     this.modelManager = new ModelManager(
       this.lvlCreatorScene,
-      this.assetManager
+      this.assetManager,
+      this.gridSize,
+      this.snapToGrid
     );
 
     // Setup UI
     this.ui = this.createUI();
 
-    // ocreate the object controller
+    // create the object controller
     this.objectController = this.createObjectController(
       this.lvlCreatorScene,
       this.ui,
@@ -226,12 +105,43 @@ class LevelCreator {
     );
 
     // Load assets and setup UI when ready
-    this.loadAssets();
+    this._loadAssets().then(() => {
+      console.log("Assets loaded successfully in Level Creator");
+
+      // If serialized scene is provided load it
+      if (sceneData) {
+        console.log("Loading serialized scene in Level Creator");
+
+        // Parse scene data if it's a string
+        let parsedSceneData = sceneData;
+        if (typeof sceneData === "string") {
+          try {
+            parsedSceneData = JSON.parse(sceneData);
+            console.log("Successfully parsed scene data in constructor");
+          } catch (error) {
+            console.error("Error parsing scene data in constructor:", error);
+            parsedSceneData = null;
+          }
+        }
+
+        if (parsedSceneData) {
+          this.loadSceneMeshes(parsedSceneData);
+          this.sceneName = parsedSceneData.name || "MyLevel";
+          this.ui.setSceneName(this.sceneName);
+        } else {
+          console.error(
+            "Failed to load serialized scene - invalid data format"
+          );
+        }
+      } else {
+        console.log("No serialized scene provided, starting with empty scene");
+      }
+    });
   }
 
   // INIT
-  private createScene(): Scene {
-    const scene = new Scene(this.engine);
+  private createScene(scene: Scene): Scene {
+    // const scene = new Scene(this.engine);
 
     // debug
     window.addEventListener("keydown", (ev) => {
@@ -276,6 +186,9 @@ class LevelCreator {
       onLoadScene: () => this.loadScene(),
       onBackToMenu: () => this.handleBackToMenu(),
       onModelSelected: (modelId) => this.startDraggingModel(modelId),
+      onTestLevel: () => this.handleTestLevel(),
+      detachCameraControlForXSeconds: (seconds) =>
+        this.detachCameraControlForXSeconds(seconds),
     };
 
     // Create UI
@@ -304,7 +217,10 @@ class LevelCreator {
       ui,
       higlightLyr,
       assetMngr,
-      (mesh) => this.handleMeshDeletion(mesh)
+      this.gridSize,
+      this.snapToGrid,
+      (mesh) => this.handleMeshDeletion(mesh),
+      this.detachCameraControlForXSeconds
     );
 
     return objectController;
@@ -353,7 +269,7 @@ class LevelCreator {
 
   public handleGroundClick(): void {
     console.log("Clicking on ground/grid - removing all highlights");
-
+    this.objectController.deselectControlPoint();
     // Get currently selected mesh and remove its highlights directly
     const selectedMesh = this.objectController.getSelectedMesh();
     if (selectedMesh && this.highlightLayer) {
@@ -435,36 +351,48 @@ class LevelCreator {
     }
   }
 
-  private loadAssets(): void {
-    // Load model assets
-    this.assetManager.addModelsToAssetManager("/kaykit/", this.modelFiles);
+  private async _loadAssets(): Promise<void> {
+    const baseUrl = "/api/assets/"; // will be proxied in vite.config.js
+
+    // Load model assets through the proxy in development or direct in production
+    this.assetManager.addModelsToAssetManager(baseUrl, this.modelFiles);
 
     // Setup callback for when assets are loaded
-    this.assetManager.loadAssets(() => {
-      this.ui.createModelSidebar(this.modelFiles);
-    });
+    // this.assetManager.loadAssets(() => {
+    // });
+
+    // await this.assetManager.loadAssetsAsync(this.lvlCreatorScene);
+    await this.assetManager.loadAssetsAsync();
+    this.ui.createModelSidebar(this.modelFiles);
   }
 
   private handleBackToMenu(): void {
+    if (
+      !confirm(
+        "Are you sure you want to exit the level creator? All unsaved changes will be lost."
+      )
+    ) {
+      console.log("User canceled back to menu action");
+      return; // User canceled we do not exit level creator
+    }
     console.log("Back to menu clicked - cleaning up scene");
     // Clean up all movement paths and rotations before scene disposal
-    if (this.objectController) {
-      // Make sure all objects are cleaned up
-      this.placedMeshes.forEach((mesh) => {
-        if (mesh && !mesh.isDisposed()) {
-          // Remove any rotation animations
-          this.objectController.removeRotationAnimation(mesh);
-          // Let ObjectController handle the visualization cleanup
-          this.objectController.deselectMesh();
-        }
-      });
-    }
+    // Make sure all objects are cleaned up
+    this.placedMeshes.forEach((mesh) => {
+      if (mesh && !mesh.isDisposed()) {
+        // Remove any rotation animations
+        this.objectController.removeRotationAnimation(mesh);
+        // Let ObjectController handle the visualization cleanup
+        this.objectController.deselectMesh();
+      }
+    });
 
     this.lvlCreatorScene.dispose();
-    this.backToMenu();
+    this.app.backToMenu();
   }
 
   private toggleGrid(visible: boolean): void {
+    console.log(`Toggling grid visibility: ${visible}`);
     if (this.gridMesh) {
       this.gridMesh.isVisible = visible;
     }
@@ -490,6 +418,9 @@ class LevelCreator {
 
       // Create preview
       this.createModelPreview(modelId);
+
+      // We set cursor to grabbing hand
+      this.canvas.style.cursor = "grabbing";
 
       // If preview creation failed, reset dragging state
       if (!this.previewMesh) {
@@ -556,11 +487,22 @@ class LevelCreator {
     };
 
     const pointerDown = (mesh: AbstractMesh) => {
+      // set cursor to grab hand
+      this.canvas.style.cursor = "grab";
+
       // Only interact with non-ground, non-grid meshes
       if (mesh === this.ground || (this.gridMesh && mesh === this.gridMesh)) {
         this.handleGroundClick();
         return;
       }
+      // If mesh marked as not draggable, do nothing
+      if (mesh.metadata && mesh.metadata.isDraggable === false) {
+        console.log(
+          `Mesh ${mesh.name} is not draggable, ignoring pointer down`
+        );
+        return;
+      }
+      this.objectController.deselectControlPoint();
 
       // Find the topmost parent mesh
       let rootMesh = this.getTopmostParentMesh(mesh as Mesh);
@@ -579,11 +521,15 @@ class LevelCreator {
     };
 
     const pointerUp = () => {
-      if (startingPoint) {
-        this.lvlCreatorCamera.attachControl(this.canvas, true);
-        startingPoint = null;
-        currentMesh = null;
-      }
+      startingPoint = null;
+      currentMesh = null;
+
+      // Reset cursor to crosshair
+      this.canvas.style.cursor = "crosshair";
+
+      // Always reattach camera control on pointer up
+      console.log("Pointer up detected - reattaching camera control");
+      this.lvlCreatorCamera.attachControl(this.canvas, true);
 
       if (this.previewMesh && this.isDragging) {
         this.placeMeshAtPreviewPosition();
@@ -591,7 +537,20 @@ class LevelCreator {
     };
 
     const pointerMove = () => {
+      if (!currentMesh && !this.isDragging) {
+        this.canvas.style.cursor = "crosshair";
+      }
+
       if (!startingPoint) return;
+
+      // we ensure that the currentMesh is not null and its metadata doesn't mark it as not draggable
+      if (
+        currentMesh &&
+        currentMesh?.metadata &&
+        currentMesh.metadata.isDraggable === false
+      ) {
+        return;
+      }
 
       const current = getGroundPosition();
       if (!current) return;
@@ -616,16 +575,31 @@ class LevelCreator {
           break;
         case PointerEventTypes.POINTERUP:
           console.log("Pointer up detected");
+          // Always reattach camera control
+          this.lvlCreatorCamera.attachControl(this.canvas, true);
+
           pointerUp();
           break;
         case PointerEventTypes.POINTERMOVE:
           pointerMove();
 
           // Update preview mesh position if dragging
-          this.updatePreviewMeshPosition(getGroundPosition());
+          if (this.isDragging && this.previewMesh) {
+            this.canvas.style.cursor = "grabbing"; // Always use grabbing when moving preview
+            this.updatePreviewMeshPosition(getGroundPosition());
+          }
           break;
       }
     });
+  }
+
+  public detachCameraControlForXSeconds(seconds: number = 1): void {
+    console.log(`Detaching camera control for ${seconds} seconds `);
+    this.lvlCreatorCamera.detachControl();
+    setTimeout(() => {
+      console.log("Reattaching camera control after timeout");
+      this.lvlCreatorCamera.attachControl(this.canvas, true);
+    }, seconds * 1000);
   }
 
   private getTopmostParentMesh(mesh: Mesh): Mesh {
@@ -649,6 +623,9 @@ class LevelCreator {
     current: Vector3
   ): void {
     if (!mesh) return;
+
+    // set cursor to grabbing hand
+    this.canvas.style.cursor = "grabbing";
 
     // Calculate difference
     const diff = current.subtract(startingPoint);
@@ -775,13 +752,27 @@ class LevelCreator {
       throw new Error(`Model "${modelId}" not found`);
     }
 
+    // Get position from preview mesh and ensure it's grid-aligned if snapping is enabled
+    let finalPosition = this.previewMesh!.position.clone();
+
+    // TEST to re-apply grid snapping to ensure position is correctly aligned ?
+    if (this.snapToGrid) {
+      finalPosition.x =
+        Math.round(finalPosition.x / this.gridSize) * this.gridSize;
+      finalPosition.z =
+        Math.round(finalPosition.z / this.gridSize) * this.gridSize;
+      console.log(
+        `Snapping final position to grid: ${finalPosition.x}, ${finalPosition.y}, ${finalPosition.z}`
+      );
+    }
+
     const newMesh = this.modelManager?.createModelAtPosition(
       modelId,
-      this.previewMesh!.position
+      finalPosition
     );
 
     if (newMesh) {
-      console.log("Successfully placed model mesh:", newMesh);
+      // console.log("Successfully placed model mesh:", newMesh);
       this.placedMeshes.push(newMesh);
       return newMesh;
     }
@@ -852,11 +843,11 @@ class LevelCreator {
 
       console.log("About to serialize meshes:", this.placedMeshes);
 
-      // Ensure all meshes have required metadata
-      this.placedMeshes.forEach(this.ensureMeshHasMetadata.bind(this));
+      // // Ensure all meshes have required metadata
+      // this.placedMeshes.forEach(this.ensureMeshHasMetadata.bind(this));
 
       // Serialize all placed meshes
-      const serializedScene = SceneSerializer.serializeScene(
+      const serializedScene = await SceneSerializer.serializeScene(
         this.placedMeshes,
         name,
         this.assetManager
@@ -876,37 +867,48 @@ class LevelCreator {
     }
   }
 
-  private ensureMeshHasMetadata(mesh: Mesh): void {
-    if (!mesh.metadata) {
-      console.warn(`Mesh ${mesh.name} has no metadata, adding basic metadata`);
-      mesh.metadata = {};
-    }
+  // private ensureMeshHasMetadata(mesh: Mesh): void {
+  //   if (!mesh.metadata) {
+  //     console.warn(`Mesh ${mesh.name} has no metadata, adding basic metadata`);
+  //     mesh.metadata = {};
+  //   }
 
-    // For basic shapes that might not have proper type set
-    if (!mesh.metadata.type) {
-      if (mesh.name.startsWith("model:")) {
-        mesh.metadata.type = "model";
-        mesh.metadata.modelId = mesh.name.replace("model:", "");
-      } else if (mesh.name.includes("sphere")) {
-        mesh.metadata.type = "sphere";
-      } else if (mesh.name.includes("box")) {
-        mesh.metadata.type = mesh.name.includes("green")
-          ? "box-green"
-          : "box-blue";
-      } else if (mesh.name.includes("torus")) {
-        mesh.metadata.type = "torus";
-      }
-    }
-  }
+  //   // For basic shapes that might not have proper type set
+  //   if (!mesh.metadata.type) {
+  //     if (mesh.name.startsWith("model:")) {
+  //       mesh.metadata.type = "model";
+  //       mesh.metadata.modelId = mesh.name.replace("model:", "");
+  //     } else if (mesh.name.includes("sphere")) {
+  //       mesh.metadata.type = "sphere";
+  //     } else if (mesh.name.includes("box")) {
+  //       mesh.metadata.type = mesh.name.includes("green")
+  //         ? "box-green"
+  //         : "box-blue";
+  //     } else if (mesh.name.includes("torus")) {
+  //       mesh.metadata.type = "torus";
+  //     }
+  //   }
+  // }
 
   private async loadScene(): Promise<void> {
     try {
+      if (
+        !confirm(
+          "Are you sure you want to load a new scene? All unsaved changes will be lost."
+        )
+      ) {
+        console.log("User canceled load scene action");
+        return; // canceled we do not load a new scene
+      }
+
       // Read file from user's file system
       const fileContent = await SceneSerializer.readFromFile();
 
       // Parse the scene data
-      const sceneData = SceneSerializer.parseSerializedScene(fileContent);
-
+      const sceneData = await SceneSerializer.parseSerializedScene(fileContent);
+      if (!sceneData || !sceneData.meshes || sceneData.meshes.length === 0) {
+        throw new Error("No valid scene data found in the file.");
+      }
       console.log("Loaded scene data:", sceneData);
 
       // Update scene name
@@ -917,6 +919,7 @@ class LevelCreator {
       this.clearScene();
 
       // Wait for all assets to be loaded
+      // await this.assetManager.loadAssetsAsync(this.lvlCreatorScene);
       await this.assetManager.loadAssetsAsync();
 
       console.log("LOAD FINISH DEBUG");
@@ -942,7 +945,7 @@ class LevelCreator {
     }
 
     // Deselect current mesh
-    this.objectController.deselectMesh();
+    this.objectController.dispose();
 
     // Dispose all placed meshes
     this.placedMeshes.forEach((mesh) => {
@@ -954,9 +957,23 @@ class LevelCreator {
   }
 
   private async loadSceneMeshes(sceneData: any): Promise<void> {
-    console.log("Starting to load meshes from scene data...");
+    console.log("Starting to load meshes from scene data... : ", sceneData);
 
-    const promises = sceneData.meshes.map(async (meshData: any) => {
+    // Use the data directly without re-parsing
+    let parsedData = sceneData;
+
+    // Make sure we have valid data
+    if (
+      !parsedData ||
+      !parsedData.meshes ||
+      !Array.isArray(parsedData.meshes) ||
+      parsedData.meshes.length === 0
+    ) {
+      console.warn("No meshes found in scene data to load.");
+      return;
+    }
+
+    const promises = parsedData.meshes.map(async (meshData: any) => {
       try {
         return this.loadSingleMesh(meshData);
       } catch (error) {
@@ -968,13 +985,14 @@ class LevelCreator {
     // Wait for all meshes to be created and filter out nulls
     const results = await Promise.all(promises);
     const successfulLoads = results.filter(Boolean).length;
+
     console.log(
-      `Successfully loaded ${successfulLoads} meshes out of ${sceneData.meshes.length}`
+      `Loaded ${successfulLoads} meshes out of ${parsedData.meshes.length}`
     );
 
-    if (successfulLoads < sceneData.meshes.length) {
+    if (successfulLoads < parsedData.meshes.length) {
       alert(
-        `Note: Only ${successfulLoads} out of ${sceneData.meshes.length} objects were loaded successfully.`
+        `Note: Only ${successfulLoads} out of ${parsedData.meshes.length} objects were loaded successfully.`
       );
     }
   }
@@ -1029,7 +1047,55 @@ class LevelCreator {
     );
   }
 
+  private async handleTestLevel(): Promise<void> {
+    try {
+      console.log("Testing current level...");
+      this.ui.displayLoadingUI(); // Show loading screen
+
+      // Ensure all meshes have metadata (more particullarly the created ones)
+      // this.placedMeshes.forEach(this.ensureMeshHasMetadata.bind(this));
+
+      const serializedScene = await SceneSerializer.serializeScene(
+        this.placedMeshes,
+        this.sceneName,
+        this.assetManager
+      );
+      if (!serializedScene) {
+        throw new Error("Failed to serialize scene data.");
+      }
+
+      console.log("Serialized level for testing:", serializedScene);
+
+      // Clean up creator scene resources BEFORE switching
+      // const currentSelected = this.objectController.getSelectedMesh();
+      // if (currentSelected) {
+      //   // this.removeHighlightFromMesh(currentSelected as Mesh);
+      //   this.objectController.deselectMesh();
+      // }
+      this.clearScene(); // Clear current scene meshes
+
+      // Dispose of the current level creator scene
+      this.lvlCreatorScene.dispose();
+      this.ui.dispose(); // Dispose of the UI
+
+      // Pass the serialized data
+      this.app.startTestLevel(serializedScene);
+    } catch (error) {
+      console.error("Error starting test level:", error);
+      alert(`Failed to start test: ${error}`);
+      this.ui.hideLoadingUI();
+    }
+    // lvlCreatorScene will be disposed by App.ts when it creates the game scene
+  }
+
   public render(): void {
+    console.log("Starting render loop for Level Creator");
+    if (!this.lvlCreatorScene || !this.engine) {
+      console.error(
+        "LEVEL CREATOR Scene or engine not initialized for rendering."
+      );
+      return;
+    }
     this.engine.runRenderLoop(() => {
       this.lvlCreatorScene.render();
     });

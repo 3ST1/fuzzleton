@@ -1,16 +1,7 @@
-import {
-  Scene,
-  Mesh,
-  Color3,
-  Vector3,
-  AbstractMesh,
-  LinesMesh,
-} from "@babylonjs/core";
+import { Scene, Mesh, Vector3 } from "@babylonjs/core";
 
 import {
-  AdvancedDynamicTexture,
   Button,
-  Container,
   Control,
   Rectangle,
   StackPanel,
@@ -20,10 +11,8 @@ import {
   InputText,
 } from "@babylonjs/gui";
 
-import { UIComponentsFactory } from "./UIComponents";
-import { AssetManagerService } from "./AssetManager";
+import { UIComponentsFactory } from "./UIComponentsFactory";
 import { ObjectController } from "./ObjectController";
-import { SceneSerializer } from "./SceneSerializer";
 import { LevelCreatorUI } from "./UI";
 
 export class selectedMeshUI {
@@ -34,17 +23,22 @@ export class selectedMeshUI {
   // Selected object
   private objectControlsPanel: Rectangle | null = null;
   private objectControlsVisible: boolean = false;
-  // Add timer references for continuous actions
+
+  // timer for continuous actions (when btn held down)
   private actionTimers: Map<string, number> = new Map();
+
+  private detachCameraControlForXSeconds: (seconds: number) => void;
 
   constructor(
     scene: Scene,
     levelCreatorUI: LevelCreatorUI,
-    objectController: ObjectController
+    objectController: ObjectController,
+    detachCameraControlForXSeconds: (seconds: number) => void
   ) {
     this.levelCreatorUI = levelCreatorUI;
     this.objectController = objectController;
     this.scene = scene;
+    this.detachCameraControlForXSeconds = detachCameraControlForXSeconds;
   }
 
   //////////////////// MESH MODIFICATION SIDE BAR //////////////////////////////
@@ -58,36 +52,38 @@ export class selectedMeshUI {
     }
 
     // Create controls panel
-    const controlsPanel = new Rectangle("objectControlsPanel");
-    controlsPanel.width = "220px";
-    controlsPanel.height = "550px";
-    controlsPanel.thickness = 2;
-    controlsPanel.color = "white";
-    controlsPanel.background = "rgba(50, 50, 50, 0.8)";
-    controlsPanel.cornerRadius = 10;
-    controlsPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    controlsPanel.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
-    controlsPanel.top = "0px";
-    controlsPanel.left = "20px";
+    const controlsPanel = UIComponentsFactory.createControlPanel(
+      "objectControlsPanel",
+      {
+        top: "0px",
+        left: "20px",
+        // height: "100px",
+        // width: "200px",
+        verticalAlignment: Control.VERTICAL_ALIGNMENT_TOP,
+        horizontalAlignment: Control.HORIZONTAL_ALIGNMENT_LEFT,
+      }
+    );
 
     // adding controlsPanel to the main editor UI
     this.levelCreatorUI.editorUI.addControl(controlsPanel);
     this.objectControlsPanel = controlsPanel;
 
     // Create a scroll viewer to make controls scrollable
-    const scrollViewer = new ScrollViewer("controlsScrollViewer");
-    scrollViewer.width = "100%";
-    scrollViewer.height = "100%";
-    scrollViewer.barSize = 10;
-    scrollViewer.barBackground = "rgba(30, 30, 30, 0.5)";
-    scrollViewer.barColor = "orange";
-    scrollViewer.wheelPrecision = 20; // Make scrolling more responsive
+    const scrollViewer = UIComponentsFactory.createScrollViewer(
+      "controlsScrollViewer",
+      {
+        onScroll: () => {
+          // Detach camera controls when scrolling to avoid zoming in/out
+          this.detachCameraControlForXSeconds(0.5);
+        },
+      }
+    );
     controlsPanel.addControl(scrollViewer);
 
     // Create a stack panel for organizing the buttons
     const stackPanel = new StackPanel("controlsStack");
     stackPanel.width = "100%";
-    // Don't set fixed height to allow content to extend for scrolling
+    // No fixed height to allow content to extend for scrolling
     // Add padding to the bottom to ensure space after the last control
     stackPanel.paddingBottom = "20px";
     scrollViewer.addControl(stackPanel);
@@ -102,41 +98,32 @@ export class selectedMeshUI {
     titleBlock.paddingBottom = "5px";
     stackPanel.addControl(titleBlock);
 
-    // Current position and rotation display
     this.addPositionRotationDisplay(stackPanel, selectedMesh);
-
-    // Create direction controls
     this.addDirectionControls(stackPanel, selectedMesh);
-
-    // Create rotation controls
     this.addRotationControls(stackPanel, selectedMesh);
-
-    // Create scaling controls
     this.addScalingControls(stackPanel, selectedMesh);
-
-    // Add movement controls (new)
     this.addMovementControls(stackPanel, selectedMesh);
-
-    // Add physics properties controls
     this.addPhysicsControls(stackPanel, selectedMesh);
 
-    // Add spacing
-    const spacer = new Rectangle("spacer");
-    spacer.height = "10px";
-    spacer.alpha = 0;
+    const spacer = UIComponentsFactory.createSpacing(10);
     stackPanel.addControl(spacer);
 
     // Delete button
-    const deleteBtn = Button.CreateSimpleButton("deleteBtn", "Delete Object");
-    deleteBtn.width = "150px";
-    deleteBtn.height = "35px";
-    deleteBtn.color = "white";
-    deleteBtn.background = "red";
-    deleteBtn.cornerRadius = 5;
-    deleteBtn.fontSize = 16;
+    const deleteBtn = UIComponentsFactory.createButton(
+      "deleteBtn",
+      "Delete Object",
+      {
+        width: "150px",
+        height: "35px",
+        color: "white",
+        background: "red",
+        cornerRadius: 5,
+        fontSize: 16,
+      }
+    );
     deleteBtn.onPointerClickObservable.add(() => {
       if (selectedMesh) {
-        // Store reference to avoid null issue during delete process
+        // We store the btn ref to avoid null issue during delete process
         const meshToDelete = selectedMesh;
         // First hide controls to avoid reference errors
         this.hideObjectControls();
@@ -147,19 +134,17 @@ export class selectedMeshUI {
     stackPanel.addControl(deleteBtn);
 
     // Add bottom padding
-    const bottomSpacer = new Rectangle("bottomSpacer");
-    bottomSpacer.height = "15px";
-    bottomSpacer.alpha = 0;
+    const bottomSpacer = UIComponentsFactory.createSpacing(15);
     stackPanel.addControl(bottomSpacer);
 
     this.objectControlsVisible = true;
 
-    console.log(
-      "end of createObjectControls : this.objectControlsVisible: ",
-      this.objectControlsVisible,
-      " this.objectControlsPanel: ",
-      this.objectControlsPanel
-    );
+    // console.log(
+    //   "end of createObjectControls : this.objectControlsVisible: ",
+    //   this.objectControlsVisible,
+    //   " this.objectControlsPanel: ",
+    //   this.objectControlsPanel
+    // );
   }
 
   hideObjectControls() {
@@ -210,6 +195,7 @@ export class selectedMeshUI {
     this.actionTimers.clear();
   }
 
+  // Position and rotation display
   private addPositionRotationDisplay(
     stackPanel: StackPanel,
     selectedMesh: Mesh
@@ -266,12 +252,13 @@ export class selectedMeshUI {
     action: () => void,
     color: string = "blue"
   ): Button {
-    const button = Button.CreateSimpleButton(name, text);
-    button.width = "40px";
-    button.height = "40px";
-    button.color = "white";
-    button.background = color;
-
+    const button = UIComponentsFactory.createButton(name, text, {
+      width: "40px",
+      height: "40px",
+      color: "white",
+      background: color,
+      fontSize: 16,
+    });
     // Add pointerdown event to start continuous action
     button.onPointerDownObservable.add(() => {
       this.startContinuousAction(name, action);
@@ -290,9 +277,10 @@ export class selectedMeshUI {
   }
 
   private addDirectionControls(stackPanel: StackPanel, selectedMesh: Mesh) {
-    const directionControls = new Rectangle("directionControls");
-    directionControls.height = "200px";
-    directionControls.thickness = 0;
+    const spacer = UIComponentsFactory.createSpacing(10);
+    stackPanel.addControl(spacer);
+    const directionControls = new StackPanel("directionControls");
+    directionControls.isVertical = true;
     directionControls.background = "transparent";
     stackPanel.addControl(directionControls);
 
@@ -303,13 +291,11 @@ export class selectedMeshUI {
     xAxisLabel.height = "20px";
     xAxisLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     directionControls.addControl(xAxisLabel);
-    xAxisLabel.top = "-75px";
 
     const xControlsPanel = new StackPanel("xControlsPanel");
     xControlsPanel.isVertical = false;
     xControlsPanel.height = "40px";
     directionControls.addControl(xControlsPanel);
-    xControlsPanel.top = "-45px";
 
     // Left button
     const leftBtn = this.createActionButton(
@@ -393,6 +379,9 @@ export class selectedMeshUI {
       }
     });
 
+    // Add spacing between axis controls
+    directionControls.addControl(UIComponentsFactory.createSpacing(10));
+
     // Y-Axis controls (Up/Down)
     const yAxisLabel = new TextBlock("yAxisLabel", "Y-Axis (Up/Down)");
     yAxisLabel.color = "white";
@@ -400,13 +389,11 @@ export class selectedMeshUI {
     yAxisLabel.height = "20px";
     yAxisLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     directionControls.addControl(yAxisLabel);
-    yAxisLabel.top = "-5px";
 
     const yControlsPanel = new StackPanel("yControlsPanel");
     yControlsPanel.isVertical = false;
     yControlsPanel.height = "40px";
     directionControls.addControl(yControlsPanel);
-    yControlsPanel.top = "20px";
 
     // Up button
     const upBtn = this.createActionButton(
@@ -496,6 +483,9 @@ export class selectedMeshUI {
       }
     });
 
+    // Add spacing between axis controls
+    directionControls.addControl(UIComponentsFactory.createSpacing(10));
+
     // Z-Axis controls (Forward/Backward)
     const zAxisLabel = new TextBlock("zAxisLabel", "Z-Axis (Forward/Backward)");
     zAxisLabel.color = "white";
@@ -503,13 +493,11 @@ export class selectedMeshUI {
     zAxisLabel.height = "20px";
     zAxisLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     directionControls.addControl(zAxisLabel);
-    zAxisLabel.top = "65px";
 
     const zControlsPanel = new StackPanel("zControlsPanel");
     zControlsPanel.isVertical = false;
     zControlsPanel.height = "40px";
     directionControls.addControl(zControlsPanel);
-    zControlsPanel.top = "90px";
 
     // Forward button
     const forwardBtn = this.createActionButton(
@@ -595,18 +583,19 @@ export class selectedMeshUI {
   }
 
   private addRotationControls(stackPanel: StackPanel, selectedMesh: Mesh) {
+    const spacer = UIComponentsFactory.createSpacing(10);
+    stackPanel.addControl(spacer);
     const rotationLabel = new TextBlock("rotationLabel", "Rotation");
     rotationLabel.color = "white";
     rotationLabel.fontSize = 14;
     rotationLabel.height = "20px";
     rotationLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     stackPanel.addControl(rotationLabel);
-    rotationLabel.paddingTop = "10px";
+    // rotationLabel.paddingTop = "10px";
 
     const rotationPanel = new StackPanel("rotationPanel");
     rotationPanel.isVertical = true;
-    rotationPanel.height = "125px";
-    rotationPanel.paddingTop = "5px";
+    // rotationPanel.height = "100px";
     stackPanel.addControl(rotationPanel);
 
     // X-axis rotation (around X)
@@ -948,6 +937,8 @@ export class selectedMeshUI {
   }
 
   private addScalingControls(stackPanel: StackPanel, selectedMesh: Mesh) {
+    const spacer = UIComponentsFactory.createSpacing(10);
+    stackPanel.addControl(spacer);
     const scalingLabel = new TextBlock("scalingLabel", "Scale");
     scalingLabel.color = "white";
     scalingLabel.fontSize = 14;
@@ -969,7 +960,7 @@ export class selectedMeshUI {
 
     const scalingPanel = new StackPanel("scalingPanel");
     scalingPanel.isVertical = false;
-    scalingPanel.height = "40px";
+    scalingPanel.height = "60px";
     stackPanel.addControl(scalingPanel);
 
     const scaleDownBtn = this.createActionButton(
@@ -1073,6 +1064,8 @@ export class selectedMeshUI {
     });
 
     scalingPanel.addControl(scaleInput);
+    const spacer2 = UIComponentsFactory.createSpacing(10);
+    scalingPanel.addControl(spacer2);
 
     const scaleUpBtn = this.createActionButton(
       "scaleUpBtn",
@@ -1107,13 +1100,14 @@ export class selectedMeshUI {
   // Modified to prevent resetting existing control points when toggling movement
   private addMovementControls(stackPanel: StackPanel, selectedMesh: Mesh) {
     // Create a container for movement controls
-    const movementContainer = new Rectangle("movementContainer");
-    movementContainer.height = "380px"; // Increased height for more rows
-    movementContainer.thickness = 1;
+    const movementContainer = new StackPanel("movementContainer");
+    // const movementContainer = new Rectangle("movementContainer");
+    // movementContainer.height = "380px"; // Increased height for more rows
+    // movementContainer.thickness = 1;
     movementContainer.color = "orange";
     movementContainer.background = "rgba(30, 30, 30, 0.5)";
-    movementContainer.cornerRadius = 5;
-    movementContainer.paddingBottom = "10px"; // Add padding for better appearance
+    // movementContainer.cornerRadius = 5;
+    // movementContainer.paddingBottom = "10px"; // Add padding for better appearance
     stackPanel.addControl(movementContainer);
 
     // Create stack panel for controls
@@ -1143,7 +1137,7 @@ export class selectedMeshUI {
     const movingCheck = new Checkbox("movingCheck");
     movingCheck.width = "20px";
     movingCheck.height = "20px";
-    movingCheck.color = "white";
+    movingCheck.color = "orange";
     movingCheck.isChecked = false;
     movingCheckRow.addControl(movingCheck);
 
@@ -1156,11 +1150,13 @@ export class selectedMeshUI {
     movingCheckRow.addControl(movingLabel);
 
     // Container for movement parameters (only visible when movement is enabled)
-    const parametersContainer = new Rectangle("parametersContainer");
-    parametersContainer.thickness = 0;
+    const parametersContainer = new StackPanel("parametersContainer");
+    // parametersContainer.thickness = 0;
     parametersContainer.background = "transparent";
-    parametersContainer.height = "370px"; // Increased to fit all rows
+    // parametersContainer.height = "370px"; /
     parametersContainer.isVisible = false;
+    parametersContainer.paddingTop = "10px";
+    parametersContainer.paddingBottom = "10px";
     movementStack.addControl(parametersContainer);
 
     const paramsStack = new StackPanel("paramsStack");
@@ -1308,7 +1304,7 @@ export class selectedMeshUI {
     speedInput.paddingRight = "5px";
     speedRow.addControl(speedInput);
 
-    // Initialize values from mesh if available
+    // initialize values from mesh if available
     if (selectedMesh) {
       // Check if the mesh has movement metadata
       if (selectedMesh.metadata && selectedMesh.metadata.moving) {
@@ -1425,23 +1421,14 @@ export class selectedMeshUI {
             updateVisualization();
           }
         } else {
-          // Only hide the path visualization for this mesh, not remove it
-          const existingPath =
-            this.objectController.objectMovementPaths.get(meshId);
-          if (existingPath && !existingPath.isDisposed()) {
-            existingPath.isVisible = false;
+          //  Remove path visualization, movements, control points and preview
+          console.log(`Disabling movement for mesh ${meshId}`);
+          selectedMesh.metadata.moving = false;
+          selectedMesh.metadata.endPos = null;
+          selectedMesh.metadata.speed = null;
 
-            // Hide control point meshes too
-            const controlPointMeshes =
-              this.objectController.controlPointMeshes.get(meshId);
-            if (controlPointMeshes) {
-              controlPointMeshes.forEach((mesh) => {
-                if (!mesh.isDisposed()) {
-                  mesh.isVisible = false;
-                }
-              });
-            }
-          }
+          // Remove path visualization
+          this.objectController.cleanupMeshVisualization(meshId);
         }
       }
     });
@@ -1563,6 +1550,7 @@ export class selectedMeshUI {
     addControlPointBtn.background = "green";
     addControlPointBtn.cornerRadius = 5;
     addControlPointBtn.fontSize = 14;
+    addControlPointBtn.hoverCursor = "pointer";
     addControlPointBtn.onPointerClickObservable.add(() => {
       if (
         selectedMesh &&
@@ -1593,7 +1581,7 @@ export class selectedMeshUI {
             0.5
           );
           // Add a Y offset to make it visible
-          midPoint.y += 5;
+          // midPoint.y += 5;
           this.objectController.addControlPoint(meshId, midPoint);
         } else {
           // Find the longest segment and add a point there
@@ -1616,7 +1604,7 @@ export class selectedMeshUI {
           const nextPoint = controlPoints[insertIndex];
           const newPos = Vector3.Lerp(prevPoint, nextPoint, 0.5);
           // Add a Y offset to make it visible
-          newPos.y += 3;
+          // newPos.y += 3;
 
           // Add new point at calculated position
           this.objectController.addControlPoint(meshId, newPos, insertIndex);
@@ -1635,7 +1623,8 @@ export class selectedMeshUI {
     removeControlPointBtn.background = "darkred";
     removeControlPointBtn.cornerRadius = 5;
     removeControlPointBtn.fontSize = 14;
-    removeControlPointBtn.top = "5px";
+    // removeControlPointBtn.top = "5px";
+    removeControlPointBtn.hoverCursor = "pointer";
     removeControlPointBtn.onPointerClickObservable.add(() => {
       if (
         this.objectController.selectedControlPoint &&
@@ -1653,6 +1642,8 @@ export class selectedMeshUI {
 
     // Add the buttons to the parameters container
     paramsStack.addControl(addControlPointBtn);
+    const spacer = UIComponentsFactory.createSpacing(10);
+    paramsStack.addControl(spacer);
     paramsStack.addControl(removeControlPointBtn);
 
     // Add rotation animation controls after the regular movement controls
@@ -1666,12 +1657,12 @@ export class selectedMeshUI {
     selectedMesh: Mesh
   ) {
     // Create a container for rotation animation controls
-    const rotationAnimContainer = new Rectangle("rotationAnimContainer");
-    rotationAnimContainer.height = "250px"; // Adjust based on content
-    rotationAnimContainer.thickness = 1;
+    const rotationAnimContainer = new StackPanel("rotationAnimContainer");
+    // rotationAnimContainer.height = "250px"; // Adjust based on content
+    // rotationAnimContainer.thickness = 1;
     rotationAnimContainer.color = "orange";
     rotationAnimContainer.background = "rgba(30, 30, 30, 0.5)";
-    rotationAnimContainer.cornerRadius = 5;
+    // rotationAnimContainer.cornerRadius = 5;
     rotationAnimContainer.paddingBottom = "10px";
     stackPanel.addControl(rotationAnimContainer);
 
@@ -1704,7 +1695,7 @@ export class selectedMeshUI {
     const rotatingCheck = new Checkbox("rotatingCheck");
     rotatingCheck.width = "20px";
     rotatingCheck.height = "20px";
-    rotatingCheck.color = "white";
+    rotatingCheck.color = "orange";
     rotatingCheck.isChecked = false;
     rotatingCheckRow.addControl(rotatingCheck);
 
@@ -1717,10 +1708,10 @@ export class selectedMeshUI {
     rotatingCheckRow.addControl(rotatingLabel);
 
     // Container for rotation parameters (only visible when rotation is enabled)
-    const rotationParamsContainer = new Rectangle("rotationParamsContainer");
-    rotationParamsContainer.thickness = 0;
+    const rotationParamsContainer = new StackPanel("rotationParamsContainer");
+    // rotationParamsContainer.thickness = 0;
     rotationParamsContainer.background = "transparent";
-    rotationParamsContainer.height = "200px";
+    // rotationParamsContainer.height = "200px";
     rotationParamsContainer.isVisible = false;
     rotationStack.addControl(rotationParamsContainer);
 
@@ -1759,11 +1750,14 @@ export class selectedMeshUI {
     xAxisRadio.thickness = 3;
     xAxisRow.addControl(xAxisRadio);
 
-    const xAxisText = new TextBlock("xAxisText", "X-Axis (Roll)");
+    const xAxisText = new TextBlock("xAxisText", "X-Axis");
     xAxisText.color = "white";
     xAxisText.fontSize = 12;
     xAxisText.paddingLeft = "10px";
+    xAxisText.width = "120px";
+    xAxisText.height = "20px";
     xAxisText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    xAxisText.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER; // Ensure vertical centering
     xAxisRow.addControl(xAxisText);
 
     // Y-axis radio button row
@@ -1782,12 +1776,14 @@ export class selectedMeshUI {
     yAxisRadio.thickness = 3;
     yAxisRow.addControl(yAxisRadio);
 
-    const yAxisText = new TextBlock("yAxisText", "Y-Axis (Yaw)");
+    const yAxisText = new TextBlock("yAxisText", "Y-Axis");
     yAxisText.color = "white";
     yAxisText.fontSize = 12;
     yAxisText.paddingLeft = "10px";
-    yAxisText.paddingRight = "15px";
+    yAxisText.width = "120px";
+    yAxisText.height = "20px";
     yAxisText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    yAxisText.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER; // Ensure vertical centering
     yAxisRow.addControl(yAxisText);
 
     // Z-axis radio button row
@@ -1806,11 +1802,14 @@ export class selectedMeshUI {
     zAxisRadio.thickness = 3;
     zAxisRow.addControl(zAxisRadio);
 
-    const zAxisText = new TextBlock("zAxisText", "Z-Axis (Pitch)");
+    const zAxisText = new TextBlock("zAxisText", "Z-Axis");
     zAxisText.color = "white";
     zAxisText.fontSize = 12;
     zAxisText.paddingLeft = "10px";
+    zAxisText.width = "120px";
+    zAxisText.height = "20px";
     zAxisText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    zAxisText.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER; // Ensure vertical centering
     zAxisRow.addControl(zAxisText);
 
     // Make radio buttons act like radio buttons (only one can be selected)
@@ -2157,15 +2156,15 @@ export class selectedMeshUI {
   // Add a new method for physics properties controls
   private addPhysicsControls(stackPanel: StackPanel, selectedMesh: Mesh) {
     // Add spacing before physics controls
-    stackPanel.addControl(UIComponentsFactory.createSpacing(10));
+    // stackPanel.addControl(UIComponentsFactory.createSpacing(10));
 
     // Create a container for physics controls
-    const physicsContainer = new Rectangle("physicsContainer");
-    physicsContainer.height = "190px"; // Height for all physics controls
-    physicsContainer.thickness = 1;
+    const physicsContainer = new StackPanel("physicsContainer");
+    // physicsContainer.height = "190px"; // Height for all physics controls
+    // physicsContainer.thickness = 1;
     physicsContainer.color = "orange";
     physicsContainer.background = "rgba(30, 30, 30, 0.5)";
-    physicsContainer.cornerRadius = 5;
+    // physicsContainer.cornerRadius = 5;
     physicsContainer.paddingBottom = "10px";
     stackPanel.addControl(physicsContainer);
 
@@ -2195,7 +2194,7 @@ export class selectedMeshUI {
     const physicsCheck = new Checkbox("physicsCheck");
     physicsCheck.width = "20px";
     physicsCheck.height = "20px";
-    physicsCheck.color = "white";
+    physicsCheck.color = "orange";
     physicsCheck.isChecked = selectedMesh?.metadata?.physics?.enabled || false;
     physicsCheckRow.addControl(physicsCheck);
 
@@ -2208,8 +2207,8 @@ export class selectedMeshUI {
     physicsCheckRow.addControl(physicsLabel);
 
     // Container for physics parameters (only visible when physics is enabled)
-    const physicsParamsContainer = new Rectangle("physicsParamsContainer");
-    physicsParamsContainer.thickness = 0;
+    const physicsParamsContainer = new StackPanel("physicsParamsContainer");
+    // physicsParamsContainer.thickness = 0;
     physicsParamsContainer.background = "transparent";
     physicsParamsContainer.height = "140px";
     physicsParamsContainer.isVisible = physicsCheck.isChecked;

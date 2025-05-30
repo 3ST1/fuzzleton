@@ -11,7 +11,7 @@ import {
   GameEnvironment as GameEnvironment,
   MyEnvObjsToAddPhysics,
 } from "../GameEnvironnement";
-import { addPhysicsAggregate } from "../App";
+import { addPhysicsAggregate } from "../utils";
 import { GameObject } from "./GameObject";
 
 class Platform extends GameObject {
@@ -148,10 +148,10 @@ class Platform extends GameObject {
     }
   }
 
-  public dispose() {
-    this.physicsAggregate.dispose();
-    this.environment.removeShadowsFromMesh(this.platform);
-    this.platform.dispose();
-  }
+  // public dispose() {
+  //   this.physicsAggregate.dispose();
+  //   this.environment.removeShadowsFromMesh(this.platform);
+  //   this.platform.dispose();
+  // }
 }
 export { Platform };

@@ -3,6 +3,13 @@ import {
   HemisphericLight,
   Scene,
   Vector3,
+  MeshBuilder,
+  StandardMaterial,
+  Color3,
+  Mesh,
+  Color4,
+  Texture,
+  SpotLight,
 } from "@babylonjs/core";
 import {
   AdvancedDynamicTexture,
@@ -13,10 +20,14 @@ import {
   TextBlock,
 } from "@babylonjs/gui";
 
+// import earcut and make it globally available for TextMeshBuilder
+import * as earcutLib from "earcut";
+(window as any).earcut = earcutLib.default || earcutLib;
+
 class MainMenu {
-  engine: any;
-  menuScene: any;
-  menuUI!: AdvancedDynamicTexture;
+  public engine: any;
+  public menuScene: any;
+  private menuUI!: AdvancedDynamicTexture;
 
   // Callback functions to communicate with App
   private startLevelCreator: (() => void) | null = null;
@@ -29,26 +40,33 @@ class MainMenu {
     this.startGame = startGame;
     this.startLevelCreator = startLevelCreator;
 
-    this.init();
+    // this.initMenu();
   }
 
-  init() {
+  async initMenu() {
     console.log("Main Menu Initialized");
 
     // basic scene for the menu
     const menuScene = new Scene(this.engine);
     this.menuScene = menuScene;
 
-    // basic camera for the menu
+    // Set the scene background color (light blue-gray)
+    menuScene.clearColor = new Color4(0.8, 0.85, 0.9, 1.0);
+
+    // basic camera for the menu - adjust position for better 3D text view
     const camera = new ArcRotateCamera(
       "menuCamera",
       Math.PI / 2,
       Math.PI / 2,
-      10,
-      Vector3.Zero(),
+      -100,
+      new Vector3(0, 8, 0),
       menuScene
     );
-    camera.attachControl(this.canvas, true);
+
+    // Disable camera controls to prevent movement
+    camera.inputs.clear();
+    // Fix camera position - do not attach control to canvas
+    // camera.attachControl(this.canvas, true);
 
     // Add some basic lighting
     const light = new HemisphericLight(
@@ -56,6 +74,65 @@ class MainMenu {
       new Vector3(0, 1, 0),
       menuScene
     );
+
+    // Add spotlight targeting the text
+    const spotlight = new SpotLight(
+      "spotlight",
+      new Vector3(0, 30, -20),
+      new Vector3(0, -0.3, 0.7),
+      Math.PI / 4,
+      10,
+      menuScene
+    );
+    spotlight.diffuse = new Color3(1, 0.8, 0.5);
+    spotlight.intensity = 0.7;
+
+    // Add 3D text for title
+    try {
+      const fontData = await (
+        await fetch("./fonts/Marck_Script_Regular.json")
+      ).json();
+      const titleText = MeshBuilder.CreateText(
+        "elegantText",
+        "Fuzzelton",
+        fontData,
+        {
+          size: 20,
+          resolution: 64,
+          depth: 5,
+          sideOrientation: Mesh.DOUBLESIDE,
+        },
+        menuScene
+      );
+
+      if (!titleText) {
+        throw new Error("failed to create 3D text mesh");
+      }
+      // Position the 3D text
+      titleText.position = new Vector3(0, 15, 0);
+
+      // Create material for the 3D text
+      const titleMaterial = new StandardMaterial("titleMaterial", menuScene);
+
+      // https://mycould.tristan-patout.fr/api/fuzzelton/assets/textures/bluePinkFur.jpg
+      // '/api/assets/' is proxied to the api in the vite.config.ts
+      const texture = new Texture(
+        "/api/assets/textures/bluePinkFur.jpg",
+        menuScene
+      );
+
+      titleMaterial.diffuseTexture = texture;
+      titleMaterial.specularColor = new Color3(0.1, 0.1, 0.1);
+
+      // if (titleMaterial.diffuseTexture) {
+      //   titleMaterial.diffuseTexture.uScale = 1;
+      //   titleMaterial.diffuseTexture.vScale = 1;
+      // }
+
+      titleText.material = titleMaterial;
+    } catch (error) {
+      console.error("Failed to load 3D font:", error);
+    }
 
     // Create the main menu
     this.createMainMenu();
@@ -66,29 +143,7 @@ class MainMenu {
 
     console.log("Creating main menu...");
 
-    // fullscreen UI
     this.menuUI = AdvancedDynamicTexture.CreateFullscreenUI("menuUI");
-
-    // Create background
-    // const background = new Rectangle("menuBackground");
-    // background.width = 1;
-    // background.height = 1;
-    // background.thickness = 0;
-    // background.background = "transparent";
-    // background.zIndex = -1;
-    // this.menuUI.addControl(background);
-
-    // Create title
-    const title = new TextBlock("title", "Fuzzelton");
-    title.color = "#5f4c5a";
-    title.fontSize = 128;
-    title.height = "300px";
-    title.fontWeight = "bold";
-    title.fontFamily = "'Parisienne', cursive";
-    title.top = "-200px";
-    title.outlineWidth = 5;
-    title.outlineColor = "lightsmoke";
-    this.menuUI.addControl(title);
 
     // Create container for buttons
     const buttonPanel = new StackPanel();
@@ -103,6 +158,7 @@ class MainMenu {
     spacing.height = "30px";
     spacing.thickness = 0;
     buttonPanel.addControl(spacing);
+
     // Play Game button
     const playButton = Button.CreateSimpleButton("playButton", "Play Game");
     this.styleMenuButton(playButton);
@@ -146,7 +202,6 @@ class MainMenu {
     button.shadowOffsetX = 2;
     button.shadowOffsetY = 2;
 
-    // Add hover effect
     button.pointerEnterAnimation = () => {
       button.hoverCursor = "pointer";
       button.background = "#ff8c00";

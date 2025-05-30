@@ -1,4 +1,13 @@
-import { Color3, PBRMaterial, Scene, StandardMaterial } from "@babylonjs/core";
+import {
+  Color3,
+  PBRMaterial,
+  PhysicsAggregate,
+  PhysicsShapeType,
+  Scene,
+  StandardMaterial,
+  Texture,
+  TransformNode,
+} from "@babylonjs/core";
 
 export function getRandomColor(): [Color3, string] {
   const num = Math.floor(Math.random() * 16777215).toString(16);
@@ -30,4 +39,56 @@ export function getPBRMaterial(
   pbr.subSurface.indexOfRefraction = 1.8;
 
   return pbr;
+}
+
+import { FurMaterial } from "@babylonjs/materials";
+
+export function getFurMaterial(
+  scene: Scene,
+  highLevelFur = false,
+  furLength = 0.2,
+  furAngle = Math.PI / 6,
+  furColor = new Color3(1, 1, 1),
+  furDiffuseTextureImg = "/api/assets/textures/bluePinkFur.jpg" // (proxied in vite.config.ts to https://mycould.tristan-patout.fr/api/fuzzelton/assets/textures/bluePinkFur.jpg)
+): FurMaterial {
+  const fur = new FurMaterial("furT", scene);
+  fur.highLevelFur = highLevelFur;
+  fur.furLength = furLength;
+  fur.furAngle = furAngle;
+  // fur.furAngle = 0;
+  fur.furColor = furColor;
+  // fur.furSpacing = 6;
+  // fur.furDensity = 100;
+  // fur.furSpeed = 200;
+  // fur.furGravity = new Vector3(0, -1, 0);
+  fur.furTexture = FurMaterial.GenerateTexture("furTexture", scene);
+  fur.diffuseTexture = new Texture(furDiffuseTextureImg, scene);
+  // fur.furTexture = FurMaterial.GenerateTexture("furTexture", scene);
+
+  return fur;
+}
+
+// TO DO : move this away ( do we still really need it ? )
+export function addPhysicsAggregate(
+  scene: Scene,
+  meshe: TransformNode,
+  shape: PhysicsShapeType,
+  mass: number = 0,
+  friction: number = 0.5,
+  restitution: number = 0
+): PhysicsAggregate {
+  const physicsAggregate = new PhysicsAggregate(
+    meshe,
+    shape,
+    { mass: mass, friction: friction, restitution: restitution },
+    scene
+  );
+
+  // Set linear damping based on mass and friction
+  // physicsAggregate.body.setLinearDamping(getLinearDamping(mass, friction));
+
+  // Store it inside the mesh for later use (accessible through metadata)
+  meshe.metadata = { physicsAggregate };
+
+  return physicsAggregate;
 }

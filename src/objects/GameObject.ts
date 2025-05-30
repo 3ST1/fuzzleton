@@ -9,7 +9,7 @@ import {
 } from "@babylonjs/core";
 import { getRandomColor, getRandomColorMaterial } from "../utils";
 import { GameEnvironment as GameEnvironment } from "../GameEnvironnement";
-import { addPhysicsAggregate } from "../App";
+import { addPhysicsAggregate } from "../utils";
 
 class GameObject {
   obj: any; // probably a Mesh
@@ -127,14 +127,14 @@ class GameObject {
     return this.endPosition;
   }
 
-  public dispose() {
-    try {
-      this.obj.dispose();
-      this.physicsAggregate.dispose();
-    } catch (e) {
-      console.error("Error disposing object (in GameObject)", e, this.obj);
-    }
-  }
+  // public dispose() {
+  //   try {
+  //     this.obj.dispose();
+  //     this.physicsAggregate.dispose();
+  //   } catch (e) {
+  //     console.error("Error disposing object (in GameObject)", e, this.obj);
+  //   }
+  // }
 }
 
 export { GameObject };

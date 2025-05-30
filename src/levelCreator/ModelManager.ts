@@ -5,19 +5,26 @@ import {
   Color3,
   StandardMaterial,
 } from "@babylonjs/core";
-import { AssetManagerService } from "./AssetManager";
+import { AssetManagerService } from "../AssetManagerService";
 import { ObjectController } from "./ObjectController";
 
 export class ModelManager {
   private scene: Scene;
   private assetManager: AssetManagerService;
-  private snapToGrid: boolean = false;
-  private gridSize: number = 1;
+  private snapToGrid!: boolean;
+  private gridSize!: number;
   private placedMeshes: Mesh[] = [];
 
-  constructor(scene: Scene, assetManager: AssetManagerService) {
+  constructor(
+    scene: Scene,
+    assetManager: AssetManagerService,
+    gridSize: number,
+    snapToGrid: boolean
+  ) {
     this.scene = scene;
     this.assetManager = assetManager;
+    this.gridSize = gridSize;
+    this.snapToGrid = snapToGrid;
   }
 
   // Create a model preview for dragging
@@ -25,7 +32,8 @@ export class ModelManager {
     console.log(`ModelManager: Creating preview for model: ${modelId}`);
 
     try {
-      const preview = this.assetManager.createModelPreview(modelId, this.scene);
+      // const preview = this.assetManager.createModelPreview(modelId, this.scene);
+      const preview = this.assetManager.createModelPreview(modelId);
 
       if (!preview) {
         console.error(`ModelManager: Failed to create preview for ${modelId}`);
@@ -46,12 +54,23 @@ export class ModelManager {
     console.log(
       `ModelManager: Creating model ${modelId} at position: ${position}`
     );
+    // set the position to the grid if snapping is enabled
+    if (this.snapToGrid) {
+      const snappedX = Math.round(position.x / this.gridSize) * this.gridSize;
+      const snappedZ = Math.round(position.z / this.gridSize) * this.gridSize;
+      const snappedY = Math.max(
+        Math.round(position.y / this.gridSize) * this.gridSize,
+        0
+      );
+      position = new Vector3(snappedX, snappedY, snappedZ);
+    }
+
     const mesh = this.assetManager.createModelInstance(
       modelId,
-      position,
-      this.scene,
-      this.snapToGrid,
-      this.gridSize
+      position
+      // this.scene,
+      // this.snapToGrid,
+      // this.gridSize
       // true,
       // 1
     );
@@ -60,7 +79,7 @@ export class ModelManager {
       // add the model ID to the mesh metadata for later reference
       // mesh.metadata.modelId = modelId;
       // mesh.metadata.type = "asset-instance";
-      console.info(`ModelManager: Successfully created model ${modelId}`);
+      // console.info(`ModelManager: Successfully created model ${modelId}`);
       this.placedMeshes.push(mesh);
 
       // Initialize metadata if needed
@@ -83,23 +102,23 @@ export class ModelManager {
     return null;
   }
 
-  private applyPositionWithSnapping(mesh: Mesh, position: Vector3) {
-    if (this.snapToGrid) {
-      const snappedX = Math.round(position.x / this.gridSize) * this.gridSize;
-      const snappedZ = Math.round(position.z / this.gridSize) * this.gridSize;
-      const snappedY = Math.max(
-        Math.round(position.y / this.gridSize) * this.gridSize,
-        0
-      );
-      mesh.position = new Vector3(snappedX, snappedY, snappedZ);
-    } else {
-      mesh.position = new Vector3(
-        position.x,
-        Math.max(position.y, 0),
-        position.z
-      );
-    }
-  }
+  // private applyPositionWithSnapping(mesh: Mesh, position: Vector3) {
+  //   if (this.snapToGrid) {
+  //     const snappedX = Math.round(position.x / this.gridSize) * this.gridSize;
+  //     const snappedZ = Math.round(position.z / this.gridSize) * this.gridSize;
+  //     const snappedY = Math.max(
+  //       Math.round(position.y / this.gridSize) * this.gridSize,
+  //       0
+  //     );
+  //     mesh.position = new Vector3(snappedX, snappedY, snappedZ);
+  //   } else {
+  //     mesh.position = new Vector3(
+  //       position.x,
+  //       Math.max(position.y, 0),
+  //       position.z
+  //     );
+  //   }
+  // }
 
   // Delete a mesh from the scene
   deleteMesh(mesh: Mesh, objectController?: ObjectController): void {
@@ -137,10 +156,8 @@ export class ModelManager {
     console.log(`Deleted mesh: ${mesh.name}`);
   }
 
-  /**
-   * Set grid snapping
-   */
-  setGridSnapping(enabled: boolean, gridSize: number = 1) {
+  // Set grid snapping (can change the grid size through this method only after construction of the
+  setGridSnapping(enabled: boolean, gridSize: number) {
     this.snapToGrid = enabled;
     this.gridSize = gridSize;
 
@@ -157,16 +174,8 @@ export class ModelManager {
     }
   }
 
-  /**
-   * Get all placed meshes
-   */
+  //Get all placed meshes
   getPlacedMeshes(): Mesh[] {
     return this.placedMeshes;
   }
-
-  /**
-   * Checks if a model with the given ID exists in the asset manager
-   * @param modelId The ID of the model to check
-   * @returns True if the model exists, false otherwise
-   */
 }

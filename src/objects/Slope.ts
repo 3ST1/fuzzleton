@@ -12,7 +12,7 @@ import {
   GameEnvironment as GameEnvironment,
   MyEnvObjsToAddPhysics,
 } from "../GameEnvironnement";
-import { addPhysicsAggregate } from "../App";
+import { addPhysicsAggregate } from "../utils";
 import { GameObject } from "./GameObject";
 
 class Slope extends GameObject {
@@ -100,11 +100,11 @@ class Slope extends GameObject {
     );
   }
 
-  public dispose() {
-    this.physicsAggregate.dispose();
-    this.environment.removeShadowsFromMesh(this.slope);
-    this.slope.dispose();
-  }
+  // public dispose() {
+  //   this.physicsAggregate.dispose();
+  //   this.environment.removeShadowsFromMesh(this.slope);
+  //   this.slope.dispose();
+  // }
 }
 
 export { Slope };

@@ -28,7 +28,7 @@ export class MeshUtils {
   }
 
   //Create a grid visualization for the scene
-  static createGridMesh(scene: Scene, gridSize: number = 1): LinesMesh {
+  static createGridMesh(scene: Scene, gridSize: number): LinesMesh {
     const size = 1000;
     const gridLines: Vector3[][] = [];
     const step = gridSize;

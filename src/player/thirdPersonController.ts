@@ -34,7 +34,7 @@ import {
   Vector3,
 } from "@babylonjs/core";
 import { GRAVITY } from "../App";
-import { FurMaterial } from "@babylonjs/materials";
+import { getFurMaterial } from "../utils";
 
 class PlayerController {
   debug: boolean = false;
@@ -135,8 +135,8 @@ class PlayerController {
   private async _loadPlayer(
     scene: Scene,
     mesheNames: string = "",
-    rootUrl: string = "/models/",
-    sceneFilename: string = "bearCharacter.glb"
+    rootUrl: string = "/api/assets/models/",
+    sceneFilename: string = "bearCharacter.glb" // https://mycould.tristan-patout.fr/api/fuzzelton/assets/models/bearCharacter.glb
   ): Promise<Mesh> {
     // Load player meshes async
     const {
@@ -153,26 +153,7 @@ class PlayerController {
     var hero = heroMeshes[0];
     // var skeleton = skeletons[0];
 
-    var fur = new FurMaterial("furT", scene);
-    fur.highLevelFur = false;
-    fur.furLength = 0.2;
-    fur.furAngle = Math.PI / 6;
-    // fur.furAngle = 0;
-    fur.furColor = new Color3(1, 1, 1);
-    // fur.furSpacing = 6;
-    // fur.furDensity = 100;
-    // fur.furSpeed = 200;
-    // fur.furGravity = new Vector3(0, -1, 0);
-    fur.furTexture = FurMaterial.GenerateTexture("furTexture", scene);
-    fur.diffuseTexture = new Texture("./textures/bluePinkFur.jpg", scene);
-    // fur.furTexture = FurMaterial.GenerateTexture("furTexture", scene);
-
-    // // CHANGE COLOR OF THE MESH
-    // const newMaterial = new PBRMaterial("newMat", this.scene);
-    // newMaterial.albedoColor = new Color3(0, 1, 0); // Green
-    // newMaterial.metallic = 0.5;
-    // newMaterial.roughness = 0.5;
-
+    const fur = getFurMaterial(this.scene);
     heroMeshes.forEach((mesh) => {
       // if mesh name does not contain the word eye, mouth, nose
       if (
@@ -555,7 +536,7 @@ class PlayerController {
       this.inAirState.jump = false;
       this.inAirState.fall = true; // now falling
       // this.velocity.y = -GRAVITY; // reset the velocity to gravity
-      this.moveDirection.y = -this.jumpImpulse / 1.25; // apply jump impulse
+      this.moveDirection.y = -this.jumpImpulse * 2; // to ensure the player falls down
     }
 
     // if the player lands on an object => stop falling
@@ -642,7 +623,7 @@ class PlayerController {
       // console.log(
       //   "player is jumping but not off the ground yet : starting jump by applying upward force"
       // );
-      console.log(this.inAirState);
+      // console.log(this.inAirState);
       this.inAirState.hasTask = true; // flag started to jump
       // this.inAirState.startedAtTime = Date.now(); // record the time the jump started
       // this.velocity.y = GRAVITY; // Apply upward force
@@ -700,8 +681,8 @@ class PlayerController {
 
       // Reduce movement during jumps and falls
       if (this.inAirState.jump || this.inAirState.fall) {
-        moveX *= 0.75;
-        moveZ *= 0.75;
+        moveX *= 0.8; // moves 20% slower in the air
+        moveZ *= 0.8;
       }
 
       // NO need to adjust because the player

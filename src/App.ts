@@ -15,12 +15,17 @@ import PlayerController from "./player/thirdPersonController";
 import { Level } from "./level/Level";
 import MainMenu from "./MainMenu";
 import LevelCreator from "./levelCreator/levelCreator";
-import { initializeAssetsManager } from "./basicAssetManager";
+import {
+  SceneSerializer,
+  SerializedScene,
+} from "./levelCreator/SceneSerializer";
+import { AssetManagerService } from "./AssetManagerService";
 
-enum GameState {
+export enum GameState {
   MENU = 0,
   PLAY = 1,
   LEVEL_CREATOR = 2,
+  TEST_LEVEL = 3,
 }
 
 export const GRAVITY = 9.81;
@@ -29,15 +34,20 @@ class App {
   private canvas!: HTMLCanvasElement;
   private engine!: BABYLON.Engine;
   private scene: BABYLON.Scene | null = null;
-  private gameState: GameState = GameState.MENU;
-  private assetsManager!: BABYLON.AssetsManager;
+  public gameState: GameState = GameState.MENU;
+
+  private currentLevelTestData: string | null = null;
+  public appInstance!: App;
 
   havokPlugin: any;
   physicsPlugin: any;
   physicsViewer: any;
   char: any = null;
+  // assetManagerService!: AssetManagerService;
+  mainMenu!: MainMenu;
 
   constructor(canvasId: string) {
+    this.appInstance = this;
     this.initialize(canvasId);
     // Handle window resizing
     window.addEventListener("resize", () => {
@@ -58,6 +68,7 @@ class App {
   }
 
   private async loadHavokPlugin(): Promise<void> {
+    console.log("Loading Havok Plugin...");
     try {
       this.havokPlugin = await HavokPlugin();
       this.physicsPlugin = new BABYLON.HavokPlugin(true, this.havokPlugin);
@@ -74,17 +85,19 @@ class App {
   }
 
   private async initialize(canvasId: string) {
-    await this.loadHavokPlugin(); // loading havok before anything else
+    // await this.loadHavokPlugin(); // loading havok before anything else
 
     this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
     this.engine = new BABYLON.Engine(this.canvas, true);
 
     // Display the main menu
-    this.displayMainMenu();
+    await this.displayMainMenu();
   }
 
-  private displayMainMenu(): void {
-    const mainMenu = new MainMenu(
+  private async displayMainMenu(): Promise<void> {
+    this.gameState = GameState.MENU; // Explicitly set menu state
+    this.currentLevelTestData = null; // Clear test data
+    this.mainMenu = new MainMenu(
       this.canvas,
       this.engine,
       async () => {
@@ -95,24 +108,32 @@ class App {
       }
     );
 
-    mainMenu.render();
+    await this.mainMenu.initMenu();
+    this.mainMenu.render();
   }
 
-  private async startGame(): Promise<void> {
+  private async startGame(isTesting: boolean = false): Promise<void> {
     // Set game state
-    this.gameState = GameState.PLAY;
+    this.gameState = isTesting ? GameState.TEST_LEVEL : GameState.PLAY;
 
     // Reset the scene
     if (this.scene) {
       this.scene.dispose();
+      this.scene = null; // Clear the scene reference
     }
 
     // Create the game scene
     this.scene = await this.createGameScene();
 
     // Set up render loop for the game scene
+
     this.engine.runRenderLoop(() => {
-      if (this.scene) {
+      if (
+        this.scene &&
+        // this.scene.isReady() &&
+        this.engine &&
+        this.physicsPlugin
+      ) {
         this.scene.render();
       }
     });
@@ -121,50 +142,71 @@ class App {
   private async startLevelCreator(): Promise<void> {
     if (this.scene) this.scene.dispose();
 
-    // Set game state
-    this.gameState = GameState.LEVEL_CREATOR;
+    const scene = new BABYLON.Scene(this.engine);
+    if (scene) {
+      await this._setupPhysics(scene); // Ensure physics is set up for the new scene
+    }
 
-    const lvlCreator = new LevelCreator(this.canvas, this.engine, async () => {
-      await this.initialize(this.canvas.id);
-    });
+    const lvlCreator = new LevelCreator(
+      this.canvas,
+      this.engine,
+      scene,
+      this,
+      this.currentLevelTestData
+    );
 
+    // Render the level creator
     lvlCreator.render();
+    this.gameState = GameState.LEVEL_CREATOR;
+  }
+
+  public async startTestLevel(levelDataJSON: string): Promise<void> {
+    // Store current level data
+    this.currentLevelTestData = levelDataJSON;
+
+    await this.startGame(true);
   }
 
   private async createGameScene(): Promise<BABYLON.Scene> {
     const scene = new BABYLON.Scene(this.engine);
+    // this.assetsManager = initializeAssetsManager(scene, this.engine); old BASIC AssetManager
+    await this._setupPhysics(scene);
 
-    // initialize the AssetsManager
-    this.assetsManager = initializeAssetsManager(scene, this.engine);
+    // console.log("DEBUG physics : ", scene.getPhysicsEngine());
 
-    this._setupPhysics(scene);
+    // Initialize the AssetManagerService
+    const assetManagerService = new AssetManagerService(scene);
 
-    // Set up environment using the Environment class
     const environment = new GameEnvironment(scene, this.canvas);
+    const thirdPers = true;
+    environment.setupGameEnvironment(thirdPers);
 
-    const thridPers = true; // false for first person, true for third person
-    environment.setupGameEnvironment(thridPers);
-
-    // environment.objectsToAddPhysics.forEach((obj) => {
-    //   addPhysicsAggregate(
-    //     scene,
-    //     obj.mesh,
-    //     obj.physicsShapeType,
-    //     obj.mass,
-    //     obj.friction,
-    //     obj.restitution
-    //   );
-    // });
-
-    // Create the player
-    const char = new PlayerController(scene, environment, thridPers);
+    const char = new PlayerController(scene, environment, thirdPers);
     this.char = char;
 
-    const level = new Level(scene, environment, this.assetsManager, char);
+    let levelDataForLoading: SerializedScene | null = null;
+    if (this.gameState === GameState.TEST_LEVEL && this.currentLevelTestData) {
+      try {
+        levelDataForLoading = await SceneSerializer.parseSerializedScene(
+          this.currentLevelTestData
+        );
+        console.log("Loading test level data:", levelDataForLoading);
+      } catch (e) {
+        console.error("Error parsing test level data:", e);
+      }
+    }
 
+    const level = new Level(
+      scene,
+      environment,
+      assetManagerService, // this.assetManagerService, // as it seems we cannot use the same assetsManager for multiple scen we need to reload everything into a new assetsManager...
+      char,
+      levelDataForLoading // level parsed data if any
+    );
+
+    // create a button to start the game
     this.createButton(environment, char, level);
-    await level.initLevel(this.assetsManager);
-    console.log("assetsManager after level creation : ", this.assetsManager);
+    await level.initLevel();
 
     this.canvas.style.opacity = "1";
 
@@ -178,83 +220,104 @@ class App {
       char.onBeforeAnimations();
     });
 
+    // this.assetManagerService.changeScene(scene);
     return scene;
   }
 
   // @ts-ignore
   createButton(env: GameEnvironment, char: PlayerController, level: Level) {
-    // Create an advanced dynamic texture (UI Layer)
+    // Added level
     const advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI("GameUI");
 
-    // Create a button
-    const button = Button.CreateSimpleButton("btn", "Play (press P)");
-    button.width = "200px"; // Set width
-    button.height = "50px"; // Set height
-    button.color = "white"; // Text color
-    button.background = "orange"; // Button background color
-    button.cornerRadius = 10; // Rounded corners
-    button.fontSize = 20; // Text size
+    // "Play (press P)" button - conditional visibility or different behavior in test mode
+    const playButton = Button.CreateSimpleButton("btn", "Play (press P)");
+    playButton.width = "150px";
+    playButton.height = "40px";
+    playButton.color = "white";
+    playButton.background = "orange";
+    playButton.cornerRadius = 5;
+    playButton.fontSize = 16;
+    playButton.isVisible = true; // Always show the button, even in test mode
 
-    // Add "Back to Menu" button
-    const menuButton = Button.CreateSimpleButton("menuBtn", "Menu");
-    menuButton.width = "100px";
-    menuButton.height = "40px";
-    menuButton.color = "white";
-    menuButton.background = "orange";
-    menuButton.cornerRadius = 5;
-    menuButton.fontSize = 16;
-    menuButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    menuButton.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    menuButton.left = "20px";
-    menuButton.top = "20px";
+    // Back button
+    let backButtonText = "Menu";
+    let backButtonAction = () => {
+      console.log("Back to main menu from game");
+      // if (this.scene) this.scene.dispose();
+      // this.displayMainMenu(); // Go to main menu
+      this.backToMenu(); // Use the backToMenu method to handle all game states
+    };
 
-    menuButton.onPointerClickObservable.add(() => {
-      if (this.scene) {
-        this.scene.dispose();
-      }
-      this.initialize(this.canvas.id);
-    });
+    if (this.gameState === GameState.TEST_LEVEL) {
+      backButtonText = "Back to Creator";
+      // backButtonAction = async () => {
+      //   console.log("Back to level creator from test mode");
+      //   if (this.scene) this.scene.dispose();
+      //   await this.startLevelCreator();
+      // };
+    }
 
-    advancedTexture.addControl(menuButton);
+    const backBtn = Button.CreateSimpleButton("backBtn", backButtonText);
+    backBtn.width = "150px";
+    backBtn.height = "40px";
+    backBtn.color = "white";
+    backBtn.background = "orange";
+    backBtn.cornerRadius = 5;
+    backBtn.fontSize = 16;
+    backBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    backBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    backBtn.left = "20px";
+    backBtn.top = "20px";
+    backBtn.onPointerClickObservable.add(backButtonAction);
+    advancedTexture.addControl(backBtn);
 
     let pKeyListener = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() === "p") {
+        // Allow P key in all modes
         console.log("P pressed");
         window.removeEventListener("keydown", pKeyListener);
-        button.isVisible = false;
+        playButton.isVisible = false;
         char.wakeUpPlayer();
         level.generateRandomObjects(100);
       }
     };
     window.addEventListener("keydown", pKeyListener);
 
-    // Set button position
-    button.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    button.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+    playButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    playButton.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
 
-    // Add button click event
-    button.onPointerClickObservable.add(() => {
+    playButton.onPointerClickObservable.add(() => {
       window.removeEventListener("keydown", pKeyListener);
-      button.isVisible = false;
+      playButton.isVisible = false;
       console.log("Button clicked -> wakingup the player!");
-
       if (char) {
         char.wakeUpPlayer();
         level.generateRandomObjects(100);
       }
     });
+    advancedTexture.addControl(playButton);
 
-    // Add button to UI
-    advancedTexture.addControl(button);
+    // Test mode will use the same button/key functionality as normal game
   }
 
   //////////// PHYSICS ////////////
-  private _setupPhysics(scene: BABYLON.Scene) {
+  private async _setupPhysics(
+    scene: BABYLON.Scene
+  ): Promise<BABYLON.PhysicsEngine | null> {
+    // to be sure we reload havok plugin
+    if (this.physicsPlugin) {
+      this.physicsPlugin.dispose();
+      this.physicsPlugin = null;
+    }
+    console.log("Setting up physics");
+    // Reload the Havok plugin
+    await this.loadHavokPlugin();
+
     if (!this.physicsPlugin) {
       console.error("Physics plugin not initialized...");
       throw new Error("Physics plugin not initialized...");
     } else {
-      console.log("Physics plugin initialized: ", this.physicsPlugin);
+      console.warn("Physics plugin initialized: ", this.physicsPlugin);
       scene.enablePhysics(
         new BABYLON.Vector3(0, -GRAVITY, 0),
         this.physicsPlugin
@@ -266,37 +329,26 @@ class App {
 
       console.log("Physics enabled to scene: ");
 
-      return scene.getPhysicsEngine();
+      return scene.getPhysicsEngine() as BABYLON.PhysicsEngine | null;
     }
   }
-}
 
-function getLinearDamping(mass: number, friction: number): number {
-  return Math.min(1, friction / 10 + mass / 100000); // TODO: improve this and add it back to addPhysicsAggregate
-}
-
-export function addPhysicsAggregate(
-  scene: BABYLON.Scene,
-  meshe: BABYLON.TransformNode,
-  shape: BABYLON.PhysicsShapeType,
-  mass: number = 0,
-  friction: number = 0.5,
-  restitution: number = 0
-): BABYLON.PhysicsAggregate {
-  const physicsAggregate = new BABYLON.PhysicsAggregate(
-    meshe,
-    shape,
-    { mass: mass, friction: friction, restitution: restitution },
-    scene
-  );
-
-  // Set linear damping based on mass and friction
-  // physicsAggregate.body.setLinearDamping(getLinearDamping(mass, friction));
-
-  // Store it inside the mesh for later use (accessible through metadata)
-  meshe.metadata = { physicsAggregate };
-
-  return physicsAggregate;
+  public backToMenu() {
+    if (this.scene) {
+      this.scene.dispose();
+      this.scene = null; // Clear the scene reference
+      console.log("Scene disposed and cleared.");
+    }
+    if (this.gameState === GameState.LEVEL_CREATOR) {
+      this.displayMainMenu();
+      // this.initialize(this.canvas.id); // Reinitialize the app to reset everything
+    } else if (this.gameState === GameState.TEST_LEVEL) {
+      this.startLevelCreator(); // Go back to level creator from the test
+    } else {
+      // this.initialize(this.canvas.id); // Reinitialize the app to reset everything
+      this.displayMainMenu(); // Go to main menu
+    }
+  }
 }
 
 export default App;

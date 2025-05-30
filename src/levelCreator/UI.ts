@@ -20,11 +20,10 @@ import {
   InputText,
 } from "@babylonjs/gui";
 
-import { UIComponentsFactory } from "./UIComponents";
-import { AssetManagerService } from "./AssetManager";
-import { ObjectController } from "./ObjectController";
-import { SceneSerializer } from "./SceneSerializer";
+import { UIComponentsFactory } from "./UIComponentsFactory";
+import { AssetManagerService } from "../AssetManagerService";
 
+// export const DEFAULT_BUTTON_COLOR = "rgba(100, 100, 100, 0.8)";
 export interface MeshItem {
   id: string;
   modelId?: string;
@@ -34,22 +33,43 @@ export interface MeshItem {
   imageUrl?: string;
 }
 
+// Represents the node Trie structure for models sidebar
+interface ModelTrieNode {
+  children: Map<string, ModelTrieNode>; // Key is the name part (ex Slope, Tile, ...)
+  // Models whose fully qualified name ends at this node in the Trie.
+  models: { meshItem: MeshItem; nameParts: string[] }[];
+}
+
+// in px
+const INDENT_PER_LEVEL = 5;
+const CATEGORY_HEADER_HEIGHT = 30;
+const MODEL_ITEM_IMAGE_SIZE = 35;
+const MODEL_ITEM_PADDING = 5;
+const PANEL_COLLAPSED_HEIGHT = "40px";
+const PANEL_EXPANDED_HEIGHT = "150px";
+const SIDEBAR_COLLAPSED_WIDTH = "50px";
+const SIDEBAR_EXPANDED_WIDTH = "250px";
+
 export interface UIEvents {
   onGridToggle: (enabled: boolean) => void;
   onSaveScene: () => Promise<void>;
   onLoadScene: () => Promise<void>;
   onBackToMenu: () => void;
   onModelSelected: (modelId: string) => void;
+  onTestLevel: () => Promise<void>;
+  detachCameraControlForXSeconds: (seconds: number) => void;
 }
 
 export class LevelCreatorUI {
-  // UI properties
-  editorUI: AdvancedDynamicTexture;
+  public editorUI: AdvancedDynamicTexture;
+  private loadingScreen!: Rectangle;
+  private loadingText!: TextBlock;
+
   private modelSidebar!: Rectangle;
+  private sidebarExpanded: boolean = true;
   private saveLoadPanel: Rectangle | null = null;
   private snapToggleBtn: Checkbox | null = null;
 
-  // Dependencies
   private scene: Scene;
   private ground: Mesh;
   private gridMesh: LinesMesh | null;
@@ -59,7 +79,6 @@ export class LevelCreatorUI {
   // Event handlers
   private events: UIEvents;
 
-  // State
   private sceneName: string = "MyLevel";
 
   constructor(
@@ -78,29 +97,60 @@ export class LevelCreatorUI {
     this.events = events;
 
     // Create fullscreen UI
-    this.editorUI = AdvancedDynamicTexture.CreateFullscreenUI("editorUI");
+    this.editorUI = AdvancedDynamicTexture.CreateFullscreenUI(
+      "editorUI",
+      true,
+      scene
+    );
 
-    // Initialize UI components
+    // init loading screen (hidden by default)
+    this.createLoadingScreen();
+
     this.setupUI();
   }
 
-  private setupUI(): void {
-    // Create back button
-    this.createBackButton();
+  // Create a loading screen that can be shown when needed
+  private createLoadingScreen(): void {
+    // container for loading screen
+    this.loadingScreen = new Rectangle("loadingScreen");
+    this.loadingScreen.width = "100%";
+    this.loadingScreen.height = "100%";
+    this.loadingScreen.background = "rgba(0, 0, 0, 0.7)";
+    this.loadingScreen.isVisible = false;
+    this.editorUI.addControl(this.loadingScreen);
 
-    // Create editor title
-    this.createEditorTitle();
-
-    // Create grid toggle
-    this.createSnapToGridToggle();
-
-    // Create save/load panel
-    this.createSaveLoadPanel();
+    // loading text
+    this.loadingText = new TextBlock("loadingText", "Loading...");
+    this.loadingText.color = "white";
+    this.loadingText.fontSize = 24;
+    this.loadingText.fontWeight = "bold";
+    this.loadingScreen.addControl(this.loadingText);
   }
 
-  // Method to initialize and get the editor UI
   public getEditorUI(): AdvancedDynamicTexture {
     return this.editorUI;
+  }
+
+  // Show loading screen
+  public displayLoadingUI(message: string = "Loading..."): void {
+    if (this.loadingScreen) {
+      this.loadingText.text = message;
+      this.loadingScreen.isVisible = true;
+    }
+  }
+
+  // Hide loading screen
+  public hideLoadingUI(): void {
+    if (this.loadingScreen) {
+      this.loadingScreen.isVisible = false;
+    }
+  }
+
+  private setupUI(): void {
+    this.createBackButton();
+    this.createEditorTitle();
+    this.createSnapToGridToggle();
+    this.createSaveLoadPanel();
   }
 
   private createBackButton(): void {
@@ -113,7 +163,7 @@ export class LevelCreatorUI {
     backButton.left = "20px";
     backButton.top = "20px";
     backButton.zIndex = 100;
-
+    backButton.hoverCursor = "pointer";
     backButton.onPointerClickObservable.add(() => {
       console.log("Back to Menu clicked");
       this.events.onBackToMenu();
@@ -123,14 +173,14 @@ export class LevelCreatorUI {
   }
 
   private createEditorTitle(): void {
-    const editorTitle = new TextBlock("editorTitle", "Level Creator");
+    const editorTitle = new TextBlock("editorTitle", "Fuzzelton Level Creator");
     editorTitle.color = "white";
-    editorTitle.fontSize = 36;
-    editorTitle.height = "40px";
+    editorTitle.fontSize = 22;
+    editorTitle.height = "30px";
     editorTitle.fontWeight = "bold";
     editorTitle.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     editorTitle.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    editorTitle.top = "20px";
+    // editorTitle.top = "5px";
     this.editorUI.addControl(editorTitle);
   }
 
@@ -139,70 +189,111 @@ export class LevelCreatorUI {
     const gridContainer = new Rectangle("gridToggleContainer");
     gridContainer.width = "180px";
     gridContainer.height = "40px";
-    gridContainer.background = "rgba(50, 50, 50, 0.7)";
-    gridContainer.cornerRadius = 5;
+    gridContainer.background = UIComponentsFactory.BG_PANEL_COLOR;
+    gridContainer.cornerRadius = UIComponentsFactory.DEFAULT_CORNER_RADIUS;
     gridContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     gridContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
     gridContainer.top = "-20px";
     gridContainer.left = "-20px";
     this.editorUI.addControl(gridContainer);
 
-    // Create checkbox
+    // Create the checkbox
     this.snapToggleBtn = new Checkbox("snapToGridToggle");
     this.snapToggleBtn.width = "20px";
     this.snapToggleBtn.height = "20px";
-    this.snapToggleBtn.color = "white";
+    this.snapToggleBtn.color = "orange";
     this.snapToggleBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     this.snapToggleBtn.left = "10px";
+    this.snapToggleBtn.zIndex = 100;
     gridContainer.addControl(this.snapToggleBtn);
 
-    // Add label for checkbox
+    // Label for checkbox
     const toggleLabel = new TextBlock("gridToggleLabel", "Snap to Grid");
     toggleLabel.color = "white";
     toggleLabel.fontSize = 16;
     toggleLabel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    toggleLabel.left = "40px";
+    toggleLabel.left = "10px";
     gridContainer.addControl(toggleLabel);
 
-    // Add event to toggle grid visibility and snapping
+    // event to toggle grid visibility and snapping
     this.snapToggleBtn.onIsCheckedChangedObservable.add((isChecked) => {
+      // console.log("DEBUG toggle changed to ", isChecked);
       this.events.onGridToggle(isChecked);
     });
   }
 
   private createSaveLoadPanel(): void {
-    // Create container for save/load buttons
-    const saveLoadPanel = new Rectangle("saveLoadPanel");
-    saveLoadPanel.width = "250px";
-    saveLoadPanel.height = "100px";
-    saveLoadPanel.background = "rgba(50, 50, 50, 0.7)";
-    saveLoadPanel.cornerRadius = 5;
-    saveLoadPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    saveLoadPanel.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
-    saveLoadPanel.top = "-20px";
-    this.editorUI.addControl(saveLoadPanel);
-    this.saveLoadPanel = saveLoadPanel;
+    // We create container for save/test/load buttons
+    const sceneManagmentPanel = new Rectangle("saveLoadPanel");
+    sceneManagmentPanel.width = "250px";
+    sceneManagmentPanel.height = PANEL_COLLAPSED_HEIGHT; // Start collapsed
+    sceneManagmentPanel.background = UIComponentsFactory.BG_PANEL_COLOR;
+    sceneManagmentPanel.cornerRadius =
+      UIComponentsFactory.DEFAULT_CORNER_RADIUS;
+    sceneManagmentPanel.horizontalAlignment =
+      Control.HORIZONTAL_ALIGNMENT_CENTER;
+    sceneManagmentPanel.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+    sceneManagmentPanel.top = "-20px";
+    this.editorUI.addControl(sceneManagmentPanel);
+    this.saveLoadPanel = sceneManagmentPanel;
 
-    // Stack panel for buttons
-    const stackPanel = new StackPanel("saveLoadStack");
-    stackPanel.width = "100%";
-    saveLoadPanel.addControl(stackPanel);
+    // Create header container for title and toggle button
+    const headerContainer = new Rectangle("headerContainer");
+    headerContainer.width = "100%";
+    headerContainer.height = "30px";
+    headerContainer.thickness = 0;
+    headerContainer.background = "transparent";
+    headerContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    headerContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    sceneManagmentPanel.addControl(headerContainer);
 
     // Title
     const title = new TextBlock("saveLoadTitle", "Scene Management");
     title.color = "white";
     title.fontSize = 18;
-    title.height = "30px";
     title.fontWeight = "bold";
-    stackPanel.addControl(title);
+    title.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    headerContainer.addControl(title);
+
+    // Toggle button
+    const toggleButton = new TextBlock("togglePanelButton", "▼");
+    toggleButton.color = "white";
+    toggleButton.fontSize = 16;
+    toggleButton.width = "30px";
+    toggleButton.height = "30px";
+    toggleButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    toggleButton.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    toggleButton.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    toggleButton.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    toggleButton.hoverCursor = "pointer";
+    headerContainer.addControl(toggleButton);
+
+    // Create content container (initially hidden)
+    const contentContainer = new StackPanel("contentContainer");
+    contentContainer.width = "100%";
+    contentContainer.top = "30px";
+    contentContainer.background = "transparent";
+    contentContainer.isVisible = false; // Start collapsed
+    contentContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    sceneManagmentPanel.addControl(contentContainer);
+
+    // Stack panel for buttons inside content container
+    const stackPanel = new StackPanel("saveLoadStack");
+    stackPanel.width = "100%";
+    stackPanel.paddingTop = "5px";
+    contentContainer.addControl(stackPanel);
 
     // Save button
-    const saveButton = Button.CreateSimpleButton("saveButton", "Save Scene");
-    saveButton.width = "200px";
-    saveButton.height = "30px";
-    saveButton.color = "white";
-    saveButton.cornerRadius = 5;
-    saveButton.background = "green";
+    const saveButton = UIComponentsFactory.createButton(
+      "saveButton",
+      "Save Scene",
+      {
+        width: "200px",
+        height: "30px",
+        color: "white",
+        background: "green",
+      }
+    );
     saveButton.onPointerClickObservable.add(() => this.events.onSaveScene());
     stackPanel.addControl(saveButton);
 
@@ -210,182 +301,454 @@ export class LevelCreatorUI {
     stackPanel.addControl(UIComponentsFactory.createSpacing(5));
 
     // Load button
-    const loadButton = Button.CreateSimpleButton("loadButton", "Load Scene");
-    loadButton.width = "200px";
-    loadButton.height = "30px";
-    loadButton.color = "white";
-    loadButton.cornerRadius = 5;
-    loadButton.background = "blue";
+    const loadButton = UIComponentsFactory.createButton(
+      "loadButton",
+      "Load Scene",
+      {
+        width: "200px",
+        height: "30px",
+        color: "white",
+        background: "blue",
+      }
+    );
     loadButton.onPointerClickObservable.add(() => this.events.onLoadScene());
     stackPanel.addControl(loadButton);
+
+    // Spacing
+    stackPanel.addControl(UIComponentsFactory.createSpacing(5));
+
+    // Test levle button
+    const testButton = UIComponentsFactory.createButton(
+      "testButton",
+      "Test Level",
+      {
+        width: "200px",
+        height: "30px",
+        color: "white",
+        background: "orange",
+      }
+    );
+    testButton.onPointerClickObservable.add(async () => {
+      await this.events.onTestLevel();
+    });
+    stackPanel.addControl(testButton);
+
+    // Add toggle functionality
+    let isPanelExpanded = false;
+    headerContainer.onPointerClickObservable.add(() => {
+      isPanelExpanded = !isPanelExpanded;
+
+      // Update visuals
+      if (isPanelExpanded) {
+        sceneManagmentPanel.height = PANEL_EXPANDED_HEIGHT;
+        contentContainer.isVisible = true;
+        toggleButton.text = "▲";
+      } else {
+        sceneManagmentPanel.height = PANEL_COLLAPSED_HEIGHT;
+        contentContainer.isVisible = false;
+        toggleButton.text = "▼";
+      }
+    });
   }
 
   public createModelSidebar(modelFiles: string[]): void {
-    // Create sidebar panel
+    // Create the sidebar container
     const sidebar = UIComponentsFactory.createSidebar("modelSidebar", {
       alignment: Control.HORIZONTAL_ALIGNMENT_LEFT,
+      width: SIDEBAR_EXPANDED_WIDTH,
     });
     this.editorUI.addControl(sidebar);
     this.modelSidebar = sidebar;
+    this.sidebarExpanded = true;
 
-    // Create scrollable panel for models
-    const scrollViewer = UIComponentsFactory.createScrollViewer("modelScroll");
+    // Create header container at the top of sidebar
+    const headerContainer = new Rectangle("sidebarHeaderContainer");
+    headerContainer.width = "100%";
+    headerContainer.height = "30px";
+    headerContainer.thickness = 0;
+    headerContainer.background = "transparent";
+    headerContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    headerContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    headerContainer.zIndex = 101;
+    sidebar.addControl(headerContainer);
+
+    // Title in the center of header
+    const title = new TextBlock("modelSidebarHeaderTitle", "Models");
+    title.color = "white";
+    title.fontSize = 20;
+    title.fontWeight = "bold";
+    title.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    headerContainer.addControl(title);
+
+    // Toggle button text inside the container
+    const toggleButtonText = new TextBlock("sidebarToggleButtonText", "◀");
+    toggleButtonText.color = "white";
+    toggleButtonText.fontSize = 16;
+    toggleButtonText.left = "-5px";
+    toggleButtonText.textHorizontalAlignment =
+      Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    toggleButtonText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    headerContainer.addControl(toggleButtonText);
+
+    // we create a scroll viewer
+    const scrollViewer = UIComponentsFactory.createScrollViewer("modelScroll", {
+      onScroll: () => {
+        // detach the camera control when scrolling to avoid zooming in/out
+        this.events.detachCameraControlForXSeconds(0.5);
+      },
+    });
     sidebar.addControl(scrollViewer);
 
-    // Create stack panel for model items
-    const stackPanel = new StackPanel("modelPanel");
-    stackPanel.width = "100%";
-    stackPanel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    scrollViewer.addControl(stackPanel);
+    // rootPanel that will hold the tree structure
+    const rootTreePanel = new StackPanel("modelTreeRootPanel");
+    rootTreePanel.width = "100%";
+    rootTreePanel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    rootTreePanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT; // Changed to LEFT
+    scrollViewer.addControl(rootTreePanel);
 
-    // Title for the sidebar
-    const sidebarTitle = new TextBlock("modelSidebarTitle", "Available Models");
-    sidebarTitle.color = "white";
-    sidebarTitle.fontSize = 20;
-    sidebarTitle.height = "40px";
-    sidebarTitle.fontWeight = "bold";
-    sidebarTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    sidebarTitle.paddingTop = "10px";
-    sidebarTitle.paddingBottom = "10px";
-    stackPanel.addControl(sidebarTitle);
+    const spacer = UIComponentsFactory.createSpacing(15);
+    rootTreePanel.addControl(spacer);
 
-    // Add each model to the sidebar
+    // const sidebarTitle = new TextBlock("modelSidebarTitle", "Models");
+    // sidebarTitle.color = "white";
+    // sidebarTitle.fontSize = 20;
+    // sidebarTitle.height = "40px";
+    // sidebarTitle.fontWeight = "bold";
+    // sidebarTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    // // sidebarTitle.paddingTop = "10px";
+    // // sidebarTitle.paddingBottom = "10px";
+    // rootTreePanel.addControl(sidebarTitle); // Add title to the root panel
+
+    // Add the toggle functionality to the container
+    headerContainer.onPointerClickObservable.add(() => {
+      this.sidebarExpanded = !this.sidebarExpanded;
+
+      if (this.sidebarExpanded) {
+        // Expand sidebar
+        sidebar.width = SIDEBAR_EXPANDED_WIDTH;
+        toggleButtonText.text = "◀";
+        scrollViewer.isVisible = true;
+        title.isVisible = true;
+      } else {
+        // Collapse sidebar
+        sidebar.width = SIDEBAR_COLLAPSED_WIDTH;
+        toggleButtonText.text = "▶";
+        scrollViewer.isVisible = false;
+        title.isVisible = false;
+      }
+    });
+
+    // build the Trie Data Structure
+    const modelTrieRoot: ModelTrieNode = { children: new Map(), models: [] };
+
     for (const filename of modelFiles) {
-      const modelId =
-        this.assetManager.getModelIdFromFilename(filename) || filename;
+      const modelId = this.assetManager.getModelIdFromFilename(filename);
+      if (!modelId) {
+        console.warn(`Model ID not found for file: ${filename}`);
+        continue; // Skip if modelId is not found in loaded models
+      } else {
+        const formattedFullName = this.formatModelName(modelId);
+        const nameParts = formattedFullName
+          .split(" ")
+          .filter((p) => p.length > 0);
 
-      // Determine color based on model name
-      let color = "gray";
-      if (modelId.includes("Blue")) color = "blue";
-      else if (modelId.includes("Red")) color = "red";
-      else if (modelId.includes("Yellow")) color = "yellow";
+        let color = "gray";
+        // if (modelId.toLowerCase().includes("blue")) color = "blue";
+        // else if (modelId.toLowerCase().includes("red")) color = "red";
+        // else if (modelId.toLowerCase().includes("yellow")) color = "yellow";
+        // else if (modelId.toLowerCase().includes("green")) color = "green";
+        // else if (modelId.toLowerCase().includes("purple")) color = "purple";
+        // else if (modelId.toLowerCase().includes("orange")) color = "orange";
 
-      // Get preview image URL
-      const fileInfo = modelFiles.find((file) =>
-        file.toLowerCase().includes(modelId.toLowerCase())
-      );
+        const baseFilename = filename
+          .substring(filename.lastIndexOf("/") + 1)
+          .split(".")[0];
+        const pathObj = this.assetManager.getAssetPathFromId(modelId);
+        let imagePath: string | undefined = undefined;
+        if (pathObj) {
+          const splitfilename = pathObj.filename.split("/");
+          const filename = splitfilename.pop() || "";
+          const path = splitfilename.join("/");
+          imagePath =
+            pathObj.rootPath +
+            path +
+            "/previews/" +
+            filename.replace(/\.[^/.]+$/, ".png");
+        }
 
-      let previewImageUrl = "";
-      if (fileInfo) {
-        const baseFilename = fileInfo.split(".")[0];
-        previewImageUrl = `/kaykit/previews/ImageToStl.com_${baseFilename}.gltf.png`;
+        const previewImageUrl = imagePath;
+        console.log(
+          `DEBUG - Model ${modelId} preview image URL: ${previewImageUrl}`
+        );
+        // const previewImageUrl = `/kaykit/previews/ImageToStl.com_${baseFilename}.gltf.png`;
+
+        const meshItem: MeshItem = {
+          id: `model-${modelId}`, // Unique UI ID
+          modelId,
+          type: "model",
+          label: formattedFullName, // Store full formatted name
+          color,
+          imageUrl: previewImageUrl,
+        };
+
+        let currentNode = modelTrieRoot;
+        for (let i = 0; i < nameParts.length; i++) {
+          const part = nameParts[i];
+          if (!currentNode.children.has(part)) {
+            currentNode.children.set(part, { children: new Map(), models: [] });
+          }
+          currentNode = currentNode.children.get(part)!;
+          if (i === nameParts.length - 1) {
+            // Last part of the name
+            currentNode.models.push({ meshItem, nameParts });
+          }
+        }
       }
-
-      const modelItem: MeshItem = {
-        id: `model-${modelId}`,
-        modelId,
-        type: "model",
-        label: this.formatModelName(modelId),
-        color,
-        imageUrl: previewImageUrl,
-      };
-
-      this.addModelItemToSidebar(stackPanel, modelItem);
-      stackPanel.addControl(UIComponentsFactory.createSpacing(10));
     }
+
+    // now taht Trie is build we populate the UI from it
+    this.addTrieNodeElementsToPanel(modelTrieRoot, rootTreePanel, 0, "root");
   }
 
-  private formatModelName(modelId: string): string {
-    // Convert camelCase to Title Case with spaces
-    return modelId
-      .replace(/([a-z])([A-Z])/g, "$1 $2") // Insert space between camelCase
-      .replace(/_/g, " ") // Replace underscores with spaces
-      .replace(/team/i, "Team ") // Add space after "team"
-      .split(" ")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
-  }
+  private addTrieNodeElementsToPanel(
+    trieNode: ModelTrieNode,
+    uiParentPanel: StackPanel,
+    level: number,
+    parentPathKey: string
+  ): void {
+    // Recursive function to add elements from the Trie to the UI panel
 
-  private addModelItemToSidebar(parent: Container, item: MeshItem): void {
-    // Container for the model item
-    const itemContainer = new Rectangle(`${item.id}-container`);
-    itemContainer.width = "220px";
-    itemContainer.height = "70px";
-    itemContainer.thickness = 1;
-    itemContainer.color = "lightgray";
-    itemContainer.background = "rgba(70, 70, 70, 0.9)";
-    itemContainer.cornerRadius = 5;
-    itemContainer.paddingBottom = "10px";
-    itemContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    itemContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    itemContainer.isPointerBlocker = true;
-    parent.addControl(itemContainer);
+    trieNode.models.forEach((modelData, index) => {
+      const displayLabel =
+        modelData.nameParts.length > 0
+          ? modelData.nameParts[modelData.nameParts.length - 1]
+          : modelData.meshItem.modelId!;
+      const modelEntryUI = this.createModelEntryDisplay(
+        modelData.meshItem,
+        displayLabel,
+        level, // Models at this node are at the current level
+        `${parentPathKey}_model${index}`
+      );
+      uiParentPanel.addControl(modelEntryUI);
+      uiParentPanel.addControl(UIComponentsFactory.createSpacing(20)); // Spacing as per original
+    });
 
-    // Label for the model
-    const modelLabel = new TextBlock(`${item.id}-label`, item.label);
-    modelLabel.color = "white";
-    modelLabel.fontSize = 14;
-    modelLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    modelLabel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    modelLabel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    modelLabel.top = "5px";
-    itemContainer.addControl(modelLabel);
+    const sortedCategoryKeys = Array.from(trieNode.children.keys()).sort();
 
-    // Create the image preview with fallback
-    const preview = UIComponentsFactory.createImagePreview(
-      `${item.id}-preview`,
-      item.imageUrl || "",
-      {
-        width: "40px",
-        height: "40px",
-        verticalAlignment: Control.VERTICAL_ALIGNMENT_BOTTOM,
-        top: "-10px",
-        fallbackColor: item.color,
-      }
-    );
-    itemContainer.addControl(preview);
+    sortedCategoryKeys.forEach((namePart, index) => {
+      const childTrieNode = trieNode.children.get(namePart)!;
+      const categoryPathKey = `${parentPathKey}_cat${index}_${namePart.replace(
+        /\s/g,
+        ""
+      )}`;
 
-    // Make the item draggable
-    itemContainer.onPointerDownObservable.add(() => {
-      if (item.type === "model" && item.modelId) {
-        this.events.onModelSelected(item.modelId);
+      // Here we check for flattening if the child node is a leaf and has only one model then will be displayed
+      if (
+        childTrieNode.children.size === 0 &&
+        childTrieNode.models.length === 1
+      ) {
+        // This child node is a leaf category with only one model --> we  Flatten it
+        const modelData = childTrieNode.models[0];
+        const displayLabel =
+          modelData.nameParts.length > 0
+            ? modelData.nameParts[modelData.nameParts.length - 1]
+            : modelData.meshItem.modelId!;
+
+        // Create and add the model entry directly to the current uiParentPanel
+        // It will be indented at the same 'level' as a category header would have been
+        const modelEntryUI = this.createModelEntryDisplay(
+          modelData.meshItem,
+          displayLabel,
+          level, // Indent at the current level, effectively replacing the category header
+          `${categoryPathKey}_flat_model`
+        );
+        uiParentPanel.addControl(modelEntryUI);
+        uiParentPanel.addControl(UIComponentsFactory.createSpacing(5));
+      } else {
+        // Default logic : Create a collapsible category
+        const categoryContainer = new StackPanel(
+          `container_${categoryPathKey}`
+        );
+        categoryContainer.width = "100%";
+        // Indentation for the category header and its content block
+        categoryContainer.paddingLeft = `${level * INDENT_PER_LEVEL}px`;
+        categoryContainer.adaptHeightToChildren = true;
+        categoryContainer.horizontalAlignment =
+          Control.HORIZONTAL_ALIGNMENT_LEFT;
+        uiParentPanel.addControl(categoryContainer);
+
+        const headerRect = new Rectangle(`header_${categoryPathKey}`);
+        headerRect.width = "100%";
+        headerRect.height = CATEGORY_HEADER_HEIGHT + "px";
+        headerRect.thickness = 0;
+        headerRect.isPointerBlocker = true;
+        headerRect.hoverCursor = "pointer";
+        categoryContainer.addControl(headerRect);
+
+        const headerText = new TextBlock(
+          `label_${categoryPathKey}`,
+          `▶ ${namePart}`
+        );
+        headerText.color = "white";
+        headerText.fontSize = 14;
+        headerText.fontWeight = "bold";
+        headerText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        headerText.paddingLeft = `${MODEL_ITEM_PADDING}px`;
+        headerRect.addControl(headerText);
+
+        const contentPanel = new StackPanel(`content_${categoryPathKey}`);
+        contentPanel.width = "100%";
+        contentPanel.paddingTop = "2px";
+        // contentPanel.height = "50px"; //should adapt to children auto
+        contentPanel.isVisible = false;
+        contentPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        // contentPanel.adaptHeightToChildren = true; // this is useless and creates perfs issues
+        categoryContainer.addControl(contentPanel);
+
+        let isExpanded = false;
+        headerRect.onPointerClickObservable.add(() => {
+          isExpanded = !isExpanded;
+          contentPanel.isVisible = isExpanded;
+          headerText.text = `${isExpanded ? "▼" : "▶"} ${namePart}`;
+        });
+
+        // Populate the content panel recursively
+        //  Items inside will be at 'level + 1'.
+        this.addTrieNodeElementsToPanel(
+          childTrieNode,
+          contentPanel,
+          level + 1, // Children are one level deeper
+          categoryPathKey
+        );
       }
     });
   }
 
-  public displayMeshInfo(mesh: Mesh): void {
-    if (!mesh) return;
+  private createModelEntryDisplay(
+    meshItem: MeshItem,
+    displayLabel: string,
+    level: number, // Hierarchical depth for indentation
+    idSuffix: string
+  ): Rectangle {
+    const itemContainer = new Rectangle(`${meshItem.id}_${idSuffix}_entry`);
+    itemContainer.width = "100%";
+    itemContainer.height = "40px";
+    // itemContainer.adaptHeightToChildren = true; Useless and lead to perfs issues
+    itemContainer.thickness = 1;
+    itemContainer.color = "gray";
+    itemContainer.background = "rgba(50, 50, 50, 0.85)";
+    itemContainer.cornerRadius = UIComponentsFactory.DEFAULT_CORNER_RADIUS - 2;
+    itemContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
 
-    const info = this.getModelInfoFromMesh(mesh);
-    let infoText = `Selected: ${mesh.name}\n`;
+    itemContainer.paddingLeft = `${level * INDENT_PER_LEVEL}px`; // apply indentation based on level
 
-    if (info.type === "model") {
-      infoText += `Model ID: ${info.modelId || "Unknown"}\n`;
-      infoText += `File: ${info.rootFolder || ""}${
-        info.fileName || "Unknown"
-      }\n`;
-    } else {
-      infoText += `Type: ${info.type || "Basic Shape"}\n`;
-    }
+    itemContainer.isPointerBlocker = true; // block pointer events in order to make it clickable
+    itemContainer.hoverCursor = "grab";
 
-    console.log(infoText);
-    // You could also display this info in a UI panel if desired
+    const innerStack = new StackPanel(`${meshItem.id}_${idSuffix}_innerstack`);
+    innerStack.isVertical = false; // horizontal for image + text
+    // innerStack.adaptHeightToChildren = true; // Useless and lead to perfs issues
+    innerStack.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    innerStack.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    innerStack.paddingLeft = `${MODEL_ITEM_PADDING}px`;
+    itemContainer.addControl(innerStack);
+
+    const preview = UIComponentsFactory.createImagePreview(
+      `${meshItem.id}_${idSuffix}_preview`,
+      meshItem.imageUrl || "",
+      {
+        width: `${MODEL_ITEM_IMAGE_SIZE}px`,
+        height: `${MODEL_ITEM_IMAGE_SIZE}px`,
+        fallbackColor: meshItem.color,
+      }
+    );
+    preview.paddingRight = `${MODEL_ITEM_PADDING}px`; // space btw image and text
+    innerStack.addControl(preview);
+
+    const modelTextLabel = new TextBlock(
+      `${meshItem.id}_${idSuffix}_txtlabel`,
+      displayLabel
+    );
+    modelTextLabel.color = "white";
+    modelTextLabel.fontSize = 12;
+    modelTextLabel.textWrapping = true;
+    modelTextLabel.resizeToFit = true;
+    modelTextLabel.width = "100%";
+    modelTextLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    innerStack.addControl(modelTextLabel);
+
+    itemContainer.onPointerDownObservable.add(() => {
+      if (meshItem.modelId) {
+        this.events.onModelSelected(meshItem.modelId);
+      }
+    });
+
+    return itemContainer;
   }
 
-  private getModelInfoFromMesh(mesh: Mesh): {
-    modelId?: string;
-    type?: string;
-    rootFolder?: string;
-    fileName?: string;
-  } {
-    if (!mesh || !mesh.metadata) {
-      return {};
-    }
-
-    const info = {
-      modelId: mesh.metadata.modelId,
-      type: mesh.metadata.type,
-      rootFolder: mesh.metadata.rootFolder,
-      fileName: mesh.metadata.fileName,
-    };
-
-    // If mesh has no modelId but name starts with "model:", extract it from the name
-    if (!info.modelId && mesh.name.startsWith("model:")) {
-      info.modelId = mesh.name.replace("model:", "");
-    }
-
-    return info;
+  private formatModelName(modelId: string): string {
+    return (
+      modelId
+        .replace(/([a-z])([A-Z])/g, "$1 $2") // Insert space between camelCase
+        .replace(/_/g, " ") // Replace underscores with spaces
+        .replace(/\//g, " ") // Replace slashes with spaces
+        // .replace(/team/i, "Team ") // Add space after "team"
+        .split(" ")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ")
+    );
   }
+
+  // private addModelItemToSidebar(parent: Container, item: MeshItem): void {
+  //   const itemContainer = new Rectangle(`${item.id}-container`);
+  //   itemContainer.width = "100%";
+  //   itemContainer.height = "70px";
+  //   itemContainer.thickness = 1;
+  //   itemContainer.color = "lightgray";
+  //   itemContainer.background = "rgba(70, 70, 70, 0.9)";
+  //   itemContainer.cornerRadius = UIComponentsFactory.DEFAULT_CORNER_RADIUS;
+  //   itemContainer.paddingBottom = "5px";
+  //   itemContainer.paddingLeft = "10px";
+  //   itemContainer.paddingRight = "10px";
+  //   itemContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+  //   itemContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+  //   itemContainer.isPointerBlocker = true;
+  //   itemContainer.hoverCursor = "grab";
+  //   parent.addControl(itemContainer);
+
+  //   const alignmentImg = 10;
+  //   const imgSize = 40;
+  //   // Create the image preview with fallback
+  //   const preview = UIComponentsFactory.createImagePreview(
+  //     `${item.id}-preview`,
+  //     item.imageUrl || "",
+  //     {
+  //       width: imgSize + "px",
+  //       height: imgSize + "px",
+  //       left: 10 + "px",
+  //       fallbackColor: item.color,
+  //     }
+  //   );
+  //   itemContainer.addControl(preview);
+
+  //   // Label for the model
+  //   const modelLabel = new TextBlock(`${item.id}-label`, item.label);
+  //   modelLabel.color = "white";
+  //   modelLabel.fontSize = 12;
+  //   modelLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+  //   modelLabel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+  //   modelLabel.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+  //   // modelLabel.top = "5px";
+  //   modelLabel.left = imgSize + alignmentImg * 2 + "px";
+  //   itemContainer.addControl(modelLabel);
+
+  //   // Make the item draggable
+  //   itemContainer.onPointerDownObservable.add(() => {
+  //     if (item.type === "model" && item.modelId) {
+  //       this.events.onModelSelected(item.modelId);
+  //     }
+  //   });
+  // }
 
   public getSceneName(): string {
     return this.sceneName;
@@ -397,5 +760,30 @@ export class LevelCreatorUI {
 
   public promptForSceneName(): string | null {
     return prompt("Enter a name for your scene:", this.sceneName);
+  }
+
+  public dispose(): void {
+    // dispose of the editor UI
+    if (this.editorUI) {
+      this.editorUI.dispose();
+    }
+
+    // dispose of the loading screen
+    if (this.loadingScreen) {
+      this.loadingScreen.dispose();
+    }
+
+    // Dispose of the model sidebar
+    if (this.modelSidebar) {
+      this.modelSidebar.dispose();
+    }
+
+    // Clear event handlers
+    this.events = {} as UIEvents;
+
+    // Clear references to avoid memory leaks
+    this.scene = null as any;
+    this.ground = null as any;
+    this.gridMesh = null;
   }
 }
