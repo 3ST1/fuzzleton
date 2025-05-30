@@ -78,13 +78,13 @@ class MainMenu {
     // Add spotlight targeting the text
     const spotlight = new SpotLight(
       "spotlight",
-      new Vector3(0, 30, -20), // Position above and in front of the text
-      new Vector3(0, -0.3, 0.7), // Direction pointing down and slightly forward
-      Math.PI / 4, // Cone angle (45 degrees)
-      10, // Exponent for spotlight falloff
+      new Vector3(0, 30, -20),
+      new Vector3(0, -0.3, 0.7),
+      Math.PI / 4,
+      10,
       menuScene
     );
-    spotlight.diffuse = new Color3(1, 0.8, 0.5); // Warm light color
+    spotlight.diffuse = new Color3(1, 0.8, 0.5);
     spotlight.intensity = 0.7;
 
     // Add 3D text for title
@@ -114,16 +114,16 @@ class MainMenu {
       // Create material for the 3D text
       const titleMaterial = new StandardMaterial("titleMaterial", menuScene);
 
-      // Load the texture for diffuse (color) map instead of specular
-      const texture = new Texture("./textures/bluePinkFur.jpg", menuScene);
+      // https://mycould.tristan-patout.fr/api/fuzzelton/assets/textures/bluePinkFur.jpg
+      // '/api/assets/' is proxied to the api in the vite.config.ts
+      const texture = new Texture(
+        "/api/assets/textures/bluePinkFur.jpg",
+        menuScene
+      );
 
-      // Apply the texture as diffuse (main color)
       titleMaterial.diffuseTexture = texture;
-
-      // Reduce specular highlights to prevent washing out the texture
       titleMaterial.specularColor = new Color3(0.1, 0.1, 0.1);
 
-      // Ensure the texture wraps properly on the 3D text
       // if (titleMaterial.diffuseTexture) {
       //   titleMaterial.diffuseTexture.uScale = 1;
       //   titleMaterial.diffuseTexture.vScale = 1;
@@ -143,7 +143,6 @@ class MainMenu {
 
     console.log("Creating main menu...");
 
-    // fullscreen UI
     this.menuUI = AdvancedDynamicTexture.CreateFullscreenUI("menuUI");
 
     // Create container for buttons
@@ -203,7 +202,6 @@ class MainMenu {
     button.shadowOffsetX = 2;
     button.shadowOffsetY = 2;
 
-    // Add hover effect
     button.pointerEnterAnimation = () => {
       button.hoverCursor = "pointer";
       button.background = "#ff8c00";

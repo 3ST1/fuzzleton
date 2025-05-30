@@ -45,6 +45,7 @@ export class ObjectController {
   private yAxisStep: number = 1; // moves of ones if grid size not activated
   private xzAxisStep: number = 1; // moves of ones if grid size not activated
   private onMeshDeleted: (mesh: Mesh) => void;
+  private detachCameraControlForXSeconds: (seconds: number) => void;
 
   public minScale: number = 0.5; // Minimum scaling factor (50% of original size)
   public maxScale: number = 100; // Maximum scaling factor (100x original size)
@@ -90,14 +91,21 @@ export class ObjectController {
     assetManager: AssetManagerService,
     gridSize: number,
     snapToGrid: boolean,
-    onMeshDeleted: (mesh: Mesh) => void
+    onMeshDeleted: (mesh: Mesh) => void,
+    detachCameraControlForXSeconds: (seconds: number) => void
   ) {
     this.scene = scene;
     this.highlightLayer = highlightLayer;
     this.assetManager = assetManager;
     this.setGridSettings(snapToGrid, gridSize);
     this.onMeshDeleted = onMeshDeleted;
-    this.selectedMeshUI = new selectedMeshUI(scene, levelCreatorUI, this);
+    this.detachCameraControlForXSeconds = detachCameraControlForXSeconds;
+    this.selectedMeshUI = new selectedMeshUI(
+      scene,
+      levelCreatorUI,
+      this,
+      detachCameraControlForXSeconds
+    );
 
     // Initialize gizmo manager for control points
     this.gizmoManager = new GizmoManager(scene);
@@ -642,13 +650,15 @@ export class ObjectController {
 
     // Create a sphere for each control point
     controlPoints.forEach((point, index) => {
-      const isEndPoint = index === 0 || index === controlPoints.length - 1;
+      const isEndPoint = index === controlPoints.length - 1;
+      const isStartPoint = index === 0;
 
       // Create sphere at point position
       const sphere = MeshBuilder.CreateSphere(
         `controlPoint_${meshId}_${index}`,
         {
-          diameter: isEndPoint ? 1 : 0.8, // Make start/end points slightly larger
+          // end point larger and start point very small (as moving the mesh is supposed to be better )
+          diameter: isStartPoint ? 0.2 : isEndPoint ? 1 : 0.8,
         },
         this.scene
       );

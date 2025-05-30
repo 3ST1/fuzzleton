@@ -86,7 +86,7 @@ export class SceneSerializer {
         meshes: serializedMeshes,
         metadata: {
           createdAt: new Date().toISOString(),
-          version: "0.3", // Current version
+          version: "0.1.0",
         },
       };
 

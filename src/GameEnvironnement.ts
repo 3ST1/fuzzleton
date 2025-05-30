@@ -157,6 +157,7 @@ export class GameEnvironment {
       }
     };
   }
+
   private _setupLights(): void {
     // Hemispheric light for ambient lightning
     this.hemiLight = new HemisphericLight(
@@ -245,6 +246,7 @@ export class GameEnvironment {
     this.scene.fogColor = new Color3(0.85, 0.75, 0.65);
     // this.scene.fogMode = Scene.FOGMODE_EXP;
   }
+
   private _setupShadows(): void {
     // Shadows
     // this.shadowGenerator = [];
@@ -333,7 +335,8 @@ export class GameEnvironment {
       // ground.material = sandMaterial;
 
       // Load a texture image for the ground
-      const groundTexture = new Texture("/textures/woodPlanks.jpg", this.scene);
+      const textureLink = "/api/assets/textures/woodPlanks.jpg"; // https://mycould.tristan-patout.fr/api/fuzzelton/assets/textures/woodPlanks.jpg
+      const groundTexture = new Texture(textureLink, this.scene);
       groundTexture.uScale = 100;
       groundTexture.vScale = 100;
       ground.material = new StandardMaterial("groundMaterial", this.scene);
@@ -383,15 +386,15 @@ export class GameEnvironment {
   }
 
   // >TO REMOVE
-  private async _initSphere(): Promise<void> {
+  private async testBallAndHeavyCube(): Promise<void> {
     const {
       meshes: heroMeshes,
       skeletons,
       animationGroups,
     } = await SceneLoader.ImportMeshAsync(
       "",
-      "/models/",
-      "beachBall.glb",
+      "/api/assets/models/",
+      "beachBall.glb", // https://mycould.tristan-patout.fr/api/fuzzelton/assets/models/beachBall.glb
       this.scene
     );
 
@@ -489,7 +492,7 @@ export class GameEnvironment {
     this._setupGround(); // if you want to use heightmap, pass the path to the heightmap image like that this._setupGround("./heightmaps/dunes.png")
     // this._setupGround("./heightmaps/dunes.png")
     this._setupPlayerCamera(this.canvas, thirdPers);
-    this._initSphere();
+    this.testBallAndHeavyCube();
     this.setupInfosGUI();
     this.setupDebugGUI();
 

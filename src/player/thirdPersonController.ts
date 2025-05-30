@@ -135,8 +135,8 @@ class PlayerController {
   private async _loadPlayer(
     scene: Scene,
     mesheNames: string = "",
-    rootUrl: string = "/models/",
-    sceneFilename: string = "bearCharacter.glb"
+    rootUrl: string = "/api/assets/models/",
+    sceneFilename: string = "bearCharacter.glb" // https://mycould.tristan-patout.fr/api/fuzzelton/assets/models/bearCharacter.glb
   ): Promise<Mesh> {
     // Load player meshes async
     const {

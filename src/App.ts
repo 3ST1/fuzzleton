@@ -22,11 +22,19 @@ import {
 } from "./levelCreator/SceneSerializer";
 import { AssetManagerService } from "./AssetManagerService";
 
+// FOR MULTIPLAYER
+import { io, Socket } from "socket.io-client";
+
 export enum GameState {
   MENU = 0,
   PLAY = 1,
   LEVEL_CREATOR = 2,
   TEST_LEVEL = 3,
+  //
+  MULTIPLAYER_LOBBY = 4,
+  MULTIPLAYER_CREATING = 5,
+  MULTIPLAYER_TESTING_SETUP = 6, // Optional intermediate state
+  MULTIPLAYER_TESTING = 7,
 }
 
 export const GRAVITY = 9.81;
@@ -37,6 +45,13 @@ class App {
   private scene: BABYLON.Scene | null = null;
   public gameState: GameState = GameState.MENU;
   // private assetsManager!: BABYLON.AssetsManager;
+
+  // For multiplayer
+  private socket: Socket | null = null;
+  private playerId: string | null = null;
+  private currentRoomId: string | null = null;
+  private currentRoomData: any = null; // To store room state from server
+  //
 
   private currentLevelTestData: string | null = null;
   public appInstance!: App; // To pass App instance to LevelCreator
@@ -67,7 +82,93 @@ class App {
         }
       }
     });
+
+    // Connect to the socket server
+    // this.connectToSocketServer();
   }
+
+  // private connectToSocketServer(): void {
+  //   this.socket = io("http://localhost:3000"); // Your server address
+
+  //   this.socket.on("connect", () => {
+  //     console.log("Connected to socket server with ID:", this.socket?.id);
+  //     this.playerId = this.socket?.id || null;
+  //   });
+
+  //   this.socket.on("disconnect", () => {
+  //     console.log("Disconnected from socket server");
+  //     // Handle disconnection, maybe return to main menu
+  //   });
+
+  //   this.socket.on("roomUpdate", (roomData: any) => {
+  //     console.log("Room update received:", roomData);
+  //     this.currentRoomData = roomData;
+  //     // Update UI based on roomData (e.g., player list, game state)
+  //     this.handleRoomStateChange(roomData.state, roomData);
+  //   });
+
+  //   this.socket.on("startCreationPhase", ({ duration }) => {
+  //     console.log(
+  //       `Server started creation phase for ${duration / 1000} seconds.`
+  //     );
+  //     this.gameState = GameState.MULTIPLAYER_CREATING;
+  //     // TODO: Start LevelCreator, show timer
+  //     // You might need a dedicated method in App.ts to start LevelCreator for multiplayer
+  //     this.startMultiplayerLevelCreator(duration);
+  //   });
+
+  //   this.socket.on("startTestingPhase", ({ levelToTest, testDuration }) => {
+  //     console.log("Server started testing phase. Level to test:", levelToTest);
+  //     this.gameState = GameState.MULTIPLAYER_TESTING;
+  //     // The `levelToTest` will be the SerializedScene string
+  //     this.currentLevelTestData = levelToTest; // Or a new property for multiplayer level
+  //     this.startMultiplayerTest(testDuration);
+  //   });
+
+  //   this.socket.on("error", (error) => {
+  //     console.error("Socket error:", error);
+  //     // Handle errors, e.g., display a message to the user
+  //   });
+  // }
+
+  // public createMultiplayerRoom(): void {
+  //   this.socket?.emit(
+  //     "createRoom",
+  //     (response: { roomId: string; players: any[] }) => {
+  //       if (response.roomId) {
+  //         this.currentRoomId = response.roomId;
+  //         this.gameState = GameState.MULTIPLAYER_LOBBY;
+  //         console.log(`Created and joined room: ${this.currentRoomId}`);
+  //         // Transition to a lobby UI screen
+  //       } else {
+  //         console.error("Failed to create room");
+  //       }
+  //     }
+  //   );
+  // }
+
+  // public joinMultiplayerRoom(roomIdToJoin: string, playerName: string): void {
+  //   if (!roomIdToJoin) {
+  //     alert("Please enter a room ID.");
+  //     return;
+  //   }
+  //   this.socket?.emit(
+  //     "joinRoom",
+  //     { roomId: roomIdToJoin.toUpperCase(), playerName },
+  //     (response: { success: boolean; room?: any; message?: string }) => {
+  //       if (response.success && response.room) {
+  //         this.currentRoomId = response.room.id;
+  //         this.currentRoomData = response.room;
+  //         this.gameState = GameState.MULTIPLAYER_LOBBY;
+  //         console.log(`Joined room: ${this.currentRoomId}`);
+  //         // Transition to lobby UI
+  //       } else {
+  //         alert(`Failed to join room: ${response.message || "Unknown error"}`);
+  //         console.error("Failed to join room:", response.message);
+  //       }
+  //     }
+  //   );
+  // }
 
   private async loadHavokPlugin(): Promise<void> {
     console.log("Loading Havok Plugin...");

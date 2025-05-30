@@ -18,16 +18,13 @@ import {
 } from "@babylonjs/core";
 import { Wall } from "../objects/Wall";
 import { GameEnvironment, MyEnvObjsToAddPhysics } from "../GameEnvironnement";
-import { addPhysicsAggregate } from "../App";
 import { Stairs } from "../objects/Stairs";
 import { GameObject } from "../objects/GameObject";
 import { Platform } from "../objects/Platform";
 import { Slope } from "../objects/Slope";
 import { LevelGenerator } from "./LevelGenerator";
 import { levelFromFile } from "./levelFromFile";
-import { addItemToAssetManager } from "../basicAssetManager";
 import PlayerController from "../player/thirdPersonController";
-import { SceneSerializer } from "../levelCreator/SceneSerializer";
 import { AssetManagerService } from "../AssetManagerService";
 
 export interface WallProp {
@@ -162,8 +159,10 @@ export class Level {
     //     this.gameEnv.addShadowsToMesh(m as Mesh);
     //   });
     // };
+
+    // https://mycould.tristan-patout.fr/api/fuzzelton/assets/models/blanketFort.glb
     this.assetManagerService.addAssetToAssetManager(
-      "/models/",
+      "/api/assets/models/",
       "blanketFort.glb",
       "blanketFort"
       // onSuccess

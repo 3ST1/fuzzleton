@@ -46,7 +46,7 @@ export function getFurMaterial(
   furLength = 0.2,
   furAngle = Math.PI / 6,
   furColor = new Color3(1, 1, 1),
-  furDiffuseTextureImg = "./textures/bluePinkFur.jpg"
+  furDiffuseTextureImg = "/api/assets/textures/bluePinkFur.jpg" // (proxied in vite.config.ts to https://mycould.tristan-patout.fr/api/fuzzelton/assets/textures/bluePinkFur.jpg)
 ): FurMaterial {
   const fur = new FurMaterial("furT", scene);
   fur.highLevelFur = highLevelFur;

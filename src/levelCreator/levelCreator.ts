@@ -187,6 +187,8 @@ class LevelCreator {
       onBackToMenu: () => this.handleBackToMenu(),
       onModelSelected: (modelId) => this.startDraggingModel(modelId),
       onTestLevel: () => this.handleTestLevel(),
+      detachCameraControlForXSeconds: (seconds) =>
+        this.detachCameraControlForXSeconds(seconds),
     };
 
     // Create UI
@@ -217,7 +219,8 @@ class LevelCreator {
       assetMngr,
       this.gridSize,
       this.snapToGrid,
-      (mesh) => this.handleMeshDeletion(mesh)
+      (mesh) => this.handleMeshDeletion(mesh),
+      this.detachCameraControlForXSeconds
     );
 
     return objectController;
@@ -349,7 +352,7 @@ class LevelCreator {
   }
 
   private async _loadAssets(): Promise<void> {
-    const baseUrl = "/api/assets/kaykit/"; // This will be proxied in vite.config.js
+    const baseUrl = "/api/assets/"; // will be proxied in vite.config.js
 
     // Load model assets through the proxy in development or direct in production
     this.assetManager.addModelsToAssetManager(baseUrl, this.modelFiles);
@@ -389,6 +392,7 @@ class LevelCreator {
   }
 
   private toggleGrid(visible: boolean): void {
+    console.log(`Toggling grid visibility: ${visible}`);
     if (this.gridMesh) {
       this.gridMesh.isVisible = visible;
     }
@@ -414,6 +418,9 @@ class LevelCreator {
 
       // Create preview
       this.createModelPreview(modelId);
+
+      // We set cursor to grabbing hand
+      this.canvas.style.cursor = "grabbing";
 
       // If preview creation failed, reset dragging state
       if (!this.previewMesh) {
@@ -480,6 +487,9 @@ class LevelCreator {
     };
 
     const pointerDown = (mesh: AbstractMesh) => {
+      // set cursor to grab hand
+      this.canvas.style.cursor = "grab";
+
       // Only interact with non-ground, non-grid meshes
       if (mesh === this.ground || (this.gridMesh && mesh === this.gridMesh)) {
         this.handleGroundClick();
@@ -514,6 +524,9 @@ class LevelCreator {
       startingPoint = null;
       currentMesh = null;
 
+      // Reset cursor to crosshair
+      this.canvas.style.cursor = "crosshair";
+
       // Always reattach camera control on pointer up
       console.log("Pointer up detected - reattaching camera control");
       this.lvlCreatorCamera.attachControl(this.canvas, true);
@@ -524,9 +537,13 @@ class LevelCreator {
     };
 
     const pointerMove = () => {
+      if (!currentMesh && !this.isDragging) {
+        this.canvas.style.cursor = "crosshair";
+      }
+
       if (!startingPoint) return;
 
-      // we ensure that the currentMesh is not null and its metadat doesn't mark it has not draggable
+      // we ensure that the currentMesh is not null and its metadata doesn't mark it as not draggable
       if (
         currentMesh &&
         currentMesh?.metadata &&
@@ -567,10 +584,22 @@ class LevelCreator {
           pointerMove();
 
           // Update preview mesh position if dragging
-          this.updatePreviewMeshPosition(getGroundPosition());
+          if (this.isDragging && this.previewMesh) {
+            this.canvas.style.cursor = "grabbing"; // Always use grabbing when moving preview
+            this.updatePreviewMeshPosition(getGroundPosition());
+          }
           break;
       }
     });
+  }
+
+  public detachCameraControlForXSeconds(seconds: number = 1): void {
+    console.log(`Detaching camera control for ${seconds} seconds `);
+    this.lvlCreatorCamera.detachControl();
+    setTimeout(() => {
+      console.log("Reattaching camera control after timeout");
+      this.lvlCreatorCamera.attachControl(this.canvas, true);
+    }, seconds * 1000);
   }
 
   private getTopmostParentMesh(mesh: Mesh): Mesh {
@@ -594,6 +623,9 @@ class LevelCreator {
     current: Vector3
   ): void {
     if (!mesh) return;
+
+    // set cursor to grabbing hand
+    this.canvas.style.cursor = "grabbing";
 
     // Calculate difference
     const diff = current.subtract(startingPoint);
