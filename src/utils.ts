@@ -1,9 +1,12 @@
 import {
   Color3,
   PBRMaterial,
+  PhysicsAggregate,
+  PhysicsShapeType,
   Scene,
   StandardMaterial,
   Texture,
+  TransformNode,
 } from "@babylonjs/core";
 
 export function getRandomColor(): [Color3, string] {
@@ -63,4 +66,29 @@ export function getFurMaterial(
   // fur.furTexture = FurMaterial.GenerateTexture("furTexture", scene);
 
   return fur;
+}
+
+// TO DO : move this away ( do we still really need it ? )
+export function addPhysicsAggregate(
+  scene: Scene,
+  meshe: TransformNode,
+  shape: PhysicsShapeType,
+  mass: number = 0,
+  friction: number = 0.5,
+  restitution: number = 0
+): PhysicsAggregate {
+  const physicsAggregate = new PhysicsAggregate(
+    meshe,
+    shape,
+    { mass: mass, friction: friction, restitution: restitution },
+    scene
+  );
+
+  // Set linear damping based on mass and friction
+  // physicsAggregate.body.setLinearDamping(getLinearDamping(mass, friction));
+
+  // Store it inside the mesh for later use (accessible through metadata)
+  meshe.metadata = { physicsAggregate };
+
+  return physicsAggregate;
 }

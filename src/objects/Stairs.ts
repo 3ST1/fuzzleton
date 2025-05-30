@@ -9,7 +9,7 @@ import {
   Tools,
 } from "@babylonjs/core";
 import { GameEnvironment as GameEnvironment } from "../GameEnvironnement";
-import { addPhysicsAggregate } from "../App";
+import { addPhysicsAggregate } from "../utils";
 import { GameObject } from "./GameObject";
 
 class Stairs extends GameObject {

@@ -883,17 +883,17 @@ export class Level {
     // );
   }
 
-  public async initLevel(assetManager: AssetManagerService): Promise<void> {
+  public async initLevel(): Promise<void> {
     console.log("init Level...");
 
     if (this.initialLevelData) {
-      console.log("Initializing level from provided test data.");
+      console.log("Initializing level with provided data...");
       const lvlFromFile = new levelFromFile(
         this.scene,
         this.gameEnv,
         this.player,
         this.assetManagerService,
-        this.initialLevelData // Pass the parsed data here
+        this.initialLevelData
       );
 
       await lvlFromFile.load();

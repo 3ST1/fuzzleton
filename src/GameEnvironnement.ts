@@ -28,7 +28,7 @@ import {
   SceneLoader,
 } from "@babylonjs/core";
 import { AdvancedDynamicTexture, Control, TextBlock } from "@babylonjs/gui";
-import { addPhysicsAggregate } from "./App";
+import { addPhysicsAggregate } from "./utils";
 import { c } from "vite/dist/node/moduleRunnerTransport.d-CXw_Ws6P";
 
 // create a type for the objects to add physics

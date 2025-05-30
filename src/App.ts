@@ -15,26 +15,17 @@ import PlayerController from "./player/thirdPersonController";
 import { Level } from "./level/Level";
 import MainMenu from "./MainMenu";
 import LevelCreator from "./levelCreator/levelCreator";
-import { initializeAssetsManager } from "./basicAssetManager";
 import {
   SceneSerializer,
   SerializedScene,
 } from "./levelCreator/SceneSerializer";
 import { AssetManagerService } from "./AssetManagerService";
 
-// FOR MULTIPLAYER
-import { io, Socket } from "socket.io-client";
-
 export enum GameState {
   MENU = 0,
   PLAY = 1,
   LEVEL_CREATOR = 2,
   TEST_LEVEL = 3,
-  //
-  MULTIPLAYER_LOBBY = 4,
-  MULTIPLAYER_CREATING = 5,
-  MULTIPLAYER_TESTING_SETUP = 6, // Optional intermediate state
-  MULTIPLAYER_TESTING = 7,
 }
 
 export const GRAVITY = 9.81;
@@ -44,17 +35,9 @@ class App {
   private engine!: BABYLON.Engine;
   private scene: BABYLON.Scene | null = null;
   public gameState: GameState = GameState.MENU;
-  // private assetsManager!: BABYLON.AssetsManager;
-
-  // For multiplayer
-  private socket: Socket | null = null;
-  private playerId: string | null = null;
-  private currentRoomId: string | null = null;
-  private currentRoomData: any = null; // To store room state from server
-  //
 
   private currentLevelTestData: string | null = null;
-  public appInstance!: App; // To pass App instance to LevelCreator
+  public appInstance!: App;
 
   havokPlugin: any;
   physicsPlugin: any;
@@ -82,93 +65,7 @@ class App {
         }
       }
     });
-
-    // Connect to the socket server
-    // this.connectToSocketServer();
   }
-
-  // private connectToSocketServer(): void {
-  //   this.socket = io("http://localhost:3000"); // Your server address
-
-  //   this.socket.on("connect", () => {
-  //     console.log("Connected to socket server with ID:", this.socket?.id);
-  //     this.playerId = this.socket?.id || null;
-  //   });
-
-  //   this.socket.on("disconnect", () => {
-  //     console.log("Disconnected from socket server");
-  //     // Handle disconnection, maybe return to main menu
-  //   });
-
-  //   this.socket.on("roomUpdate", (roomData: any) => {
-  //     console.log("Room update received:", roomData);
-  //     this.currentRoomData = roomData;
-  //     // Update UI based on roomData (e.g., player list, game state)
-  //     this.handleRoomStateChange(roomData.state, roomData);
-  //   });
-
-  //   this.socket.on("startCreationPhase", ({ duration }) => {
-  //     console.log(
-  //       `Server started creation phase for ${duration / 1000} seconds.`
-  //     );
-  //     this.gameState = GameState.MULTIPLAYER_CREATING;
-  //     // TODO: Start LevelCreator, show timer
-  //     // You might need a dedicated method in App.ts to start LevelCreator for multiplayer
-  //     this.startMultiplayerLevelCreator(duration);
-  //   });
-
-  //   this.socket.on("startTestingPhase", ({ levelToTest, testDuration }) => {
-  //     console.log("Server started testing phase. Level to test:", levelToTest);
-  //     this.gameState = GameState.MULTIPLAYER_TESTING;
-  //     // The `levelToTest` will be the SerializedScene string
-  //     this.currentLevelTestData = levelToTest; // Or a new property for multiplayer level
-  //     this.startMultiplayerTest(testDuration);
-  //   });
-
-  //   this.socket.on("error", (error) => {
-  //     console.error("Socket error:", error);
-  //     // Handle errors, e.g., display a message to the user
-  //   });
-  // }
-
-  // public createMultiplayerRoom(): void {
-  //   this.socket?.emit(
-  //     "createRoom",
-  //     (response: { roomId: string; players: any[] }) => {
-  //       if (response.roomId) {
-  //         this.currentRoomId = response.roomId;
-  //         this.gameState = GameState.MULTIPLAYER_LOBBY;
-  //         console.log(`Created and joined room: ${this.currentRoomId}`);
-  //         // Transition to a lobby UI screen
-  //       } else {
-  //         console.error("Failed to create room");
-  //       }
-  //     }
-  //   );
-  // }
-
-  // public joinMultiplayerRoom(roomIdToJoin: string, playerName: string): void {
-  //   if (!roomIdToJoin) {
-  //     alert("Please enter a room ID.");
-  //     return;
-  //   }
-  //   this.socket?.emit(
-  //     "joinRoom",
-  //     { roomId: roomIdToJoin.toUpperCase(), playerName },
-  //     (response: { success: boolean; room?: any; message?: string }) => {
-  //       if (response.success && response.room) {
-  //         this.currentRoomId = response.room.id;
-  //         this.currentRoomData = response.room;
-  //         this.gameState = GameState.MULTIPLAYER_LOBBY;
-  //         console.log(`Joined room: ${this.currentRoomId}`);
-  //         // Transition to lobby UI
-  //       } else {
-  //         alert(`Failed to join room: ${response.message || "Unknown error"}`);
-  //         console.error("Failed to join room:", response.message);
-  //       }
-  //     }
-  //   );
-  // }
 
   private async loadHavokPlugin(): Promise<void> {
     console.log("Loading Havok Plugin...");
@@ -192,9 +89,6 @@ class App {
 
     this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
     this.engine = new BABYLON.Engine(this.canvas, true);
-    // const nullScene = new BABYLON.Scene(this.engine); // just so we can start loading assets in background
-    // this.assetManagerService = AssetManagerService.setInstance(nullScene);
-    // this.assetManagerService = new AssetManagerService(nullScene);
 
     // Display the main menu
     await this.displayMainMenu();
@@ -253,8 +147,6 @@ class App {
       await this._setupPhysics(scene); // Ensure physics is set up for the new scene
     }
 
-    // Create new level creator only if we don't have a saved instance
-
     const lvlCreator = new LevelCreator(
       this.canvas,
       this.engine,
@@ -265,8 +157,6 @@ class App {
 
     // Render the level creator
     lvlCreator.render();
-
-    // Set game state
     this.gameState = GameState.LEVEL_CREATOR;
   }
 
@@ -277,62 +167,12 @@ class App {
     await this.startGame(true);
   }
 
-  // private async createGameScene(): Promise<BABYLON.Scene> {
-  //   const scene = new BABYLON.Scene(this.engine);
-
-  //   // initialize the AssetsManager
-  //   this.assetsManager = initializeAssetsManager(scene, this.engine);
-
-  //   this._setupPhysics(scene);
-
-  //   // Set up environment using the Environment class
-  //   const environment = new GameEnvironment(scene, this.canvas);
-
-  //   const thridPers = true; // false for first person, true for third person
-  //   environment.setupGameEnvironment(thridPers);
-
-  //   // environment.objectsToAddPhysics.forEach((obj) => {
-  //   //   addPhysicsAggregate(
-  //   //     scene,
-  //   //     obj.mesh,
-  //   //     obj.physicsShapeType,
-  //   //     obj.mass,
-  //   //     obj.friction,
-  //   //     obj.restitution
-  //   //   );
-  //   // });
-
-  //   // Create the player
-  //   const char = new PlayerController(scene, environment, thridPers);
-  //   this.char = char;
-
-  //   const level = new Level(scene, environment, this.assetsManager, char);
-
-  //   this.createButton(environment, char, level);
-  //   await level.initLevel(this.assetsManager);
-  //   console.log("assetsManager after level creation : ", this.assetsManager);
-
-  //   this.canvas.style.opacity = "1";
-
-  //   scene.onBeforeRenderObservable.add(() => {
-  //     environment.updateFps(this.engine.getFps());
-  //     if (this.scene) {
-  //       char.updatePlayer(this.scene.deltaTime);
-  //     }
-  //   });
-  //   scene.onBeforeAnimationsObservable.add(() => {
-  //     char.onBeforeAnimations();
-  //   });
-
-  //   return scene;
-  // }
-
   private async createGameScene(): Promise<BABYLON.Scene> {
     const scene = new BABYLON.Scene(this.engine);
     // this.assetsManager = initializeAssetsManager(scene, this.engine); old BASIC AssetManager
     await this._setupPhysics(scene);
 
-    console.log("DEBUG physics : ", scene.getPhysicsEngine());
+    // console.log("DEBUG physics : ", scene.getPhysicsEngine());
 
     // Initialize the AssetManagerService
     const assetManagerService = new AssetManagerService(scene);
@@ -353,21 +193,20 @@ class App {
         console.log("Loading test level data:", levelDataForLoading);
       } catch (e) {
         console.error("Error parsing test level data:", e);
-        // Fallback or error handling
       }
     }
 
     const level = new Level(
       scene,
       environment,
-      // this.assetManagerService,
-      assetManagerService,
+      assetManagerService, // this.assetManagerService, // as it seems we cannot use the same assetsManager for multiple scen we need to reload everything into a new assetsManager...
       char,
-      levelDataForLoading // Pass parsed data
+      levelDataForLoading // level parsed data if any
     );
 
-    this.createButton(environment, char, level); // Pass level here if needed
-    await level.initLevel(assetManagerService);
+    // create a button to start the game
+    this.createButton(environment, char, level);
+    await level.initLevel();
 
     this.canvas.style.opacity = "1";
 
@@ -510,34 +349,6 @@ class App {
       this.displayMainMenu(); // Go to main menu
     }
   }
-}
-
-function getLinearDamping(mass: number, friction: number): number {
-  return Math.min(1, friction / 10 + mass / 100000); // TODO: improve this and add it back to addPhysicsAggregate
-}
-
-export function addPhysicsAggregate(
-  scene: BABYLON.Scene,
-  meshe: BABYLON.TransformNode,
-  shape: BABYLON.PhysicsShapeType,
-  mass: number = 0,
-  friction: number = 0.5,
-  restitution: number = 0
-): BABYLON.PhysicsAggregate {
-  const physicsAggregate = new BABYLON.PhysicsAggregate(
-    meshe,
-    shape,
-    { mass: mass, friction: friction, restitution: restitution },
-    scene
-  );
-
-  // Set linear damping based on mass and friction
-  // physicsAggregate.body.setLinearDamping(getLinearDamping(mass, friction));
-
-  // Store it inside the mesh for later use (accessible through metadata)
-  meshe.metadata = { physicsAggregate };
-
-  return physicsAggregate;
 }
 
 export default App;

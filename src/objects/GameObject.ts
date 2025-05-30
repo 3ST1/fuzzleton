@@ -9,7 +9,7 @@ import {
 } from "@babylonjs/core";
 import { getRandomColor, getRandomColorMaterial } from "../utils";
 import { GameEnvironment as GameEnvironment } from "../GameEnvironnement";
-import { addPhysicsAggregate } from "../App";
+import { addPhysicsAggregate } from "../utils";
 
 class GameObject {
   obj: any; // probably a Mesh

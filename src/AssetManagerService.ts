@@ -618,6 +618,7 @@ export class AssetManagerService {
     }
 
     // Set up the onFinish callback for assets manager
+    // @ts-ignore
     this.assetsManager.onFinish = (tasks) => {
       this.allAssestsLoaded = true;
       console.log(

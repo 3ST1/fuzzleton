@@ -12,7 +12,7 @@ import {
   GameEnvironment as GameEnvironment,
   MyEnvObjsToAddPhysics,
 } from "../GameEnvironnement";
-import { addPhysicsAggregate } from "../App";
+import { addPhysicsAggregate } from "../utils";
 import { GameObject } from "./GameObject";
 
 class Slope extends GameObject {

@@ -1,4 +1,3 @@
-// Model files to load
 export const modelFiles: string[] = [
   "kaykit/arrow_teamBlue.glb",
   "kaykit/arrow_teamRed.glb",
