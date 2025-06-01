@@ -28,6 +28,9 @@ export class AssetManagerService {
   } = {};
   private scene!: Scene;
 
+  // Add storage for asset image URLs
+  private assetImageUrls: { [key: string]: string } = {};
+
   constructor(scene: Scene) {
     // WE REMOVED THIS AND THE assetsManager will now be automatically initialized when needed (in loadAssets or loadAssetsAsync is called)
     this.scene = scene;
@@ -130,10 +133,11 @@ export class AssetManagerService {
     _onError: (task: any) => void = () => {}
   ): void {
     // Use clean ID without additional prefixes or timestamps
+    console.log(id);
     const cleanId = id.replace(/^placed-/, "").split("-")[0]; // Remove prefix and timestamp
     const taskId = `task-${id}-${Date.now()}`; // Use a separate ID for the task
 
-    // console.log(`Adding asset with clean ID: ${cleanId}, task ID: ${taskId}`);
+    console.log(`Adding asset with clean ID: ${cleanId}, task ID: ${taskId}`);
 
     // Store the path information for this asset using clean ID
     this.assetPaths[cleanId] = {
@@ -171,16 +175,23 @@ export class AssetManagerService {
 
       // Store container using clean ID for consistent lookup
       this.modelAssets[cleanId] = container;
-      // console.log(
-      //   `Added asset with clean ID: ${cleanId} to modelAssets. Available models: ${Object.keys(
-      //     this.modelAssets
-      //   )}`
-      // );
+
+      // Then we store the image URL for this asset (must be a PNG !!!!!!!)
+      const splitFilename = filename.split("/");
+      const filenameOnly = splitFilename.pop() || "";
+      const path = splitFilename.join("/");
+      const imagePath =
+        rootPath +
+        (path ? path + "/" : "") +
+        "previews/" +
+        filenameOnly.replace(/\.[^/.]+$/, ".png");
+
+      this.setAssetImageUrl(cleanId, imagePath);
     };
 
     const onError = (task) => {
       _onError(task);
-      console.error("Error loading asset: ", task.errorObject.message);
+      console.error("Error loading asset: ", task.errorObject);
       // Remove the path info for failed loads using clean ID
       delete this.assetPaths[cleanId];
       // Optionally, remove the model from modelAssets if it was partially loaded
@@ -522,7 +533,45 @@ export class AssetManagerService {
 
   // Extract model ID from filename
   getModelIdFromFilename(filename: string): string {
-    return filename.replace(".gltf", "").replace(".glb", "");
+    // Remove file extension and any path and placed timestamp and model
+    const cleanName = filename
+      .replace(/\.gltf$/, "")
+      .replace(/\.glb$/, "")
+      .replace(/\.png$/, "");
+
+    return cleanName;
+  }
+
+  // Set an image URL for a specific model ID
+  public setAssetImageUrl(modelId: string, imageUrl: string): void {
+    this.assetImageUrls[modelId] = imageUrl;
+  }
+
+  // Get the image URL for a model, constructing it if not already set
+  public getAssetImageUrl(modelId: string): string | null {
+    // First check if we have a stored URL
+    if (this.assetImageUrls[modelId]) {
+      return this.assetImageUrls[modelId];
+    }
+
+    // Try to construct the URL from asset path
+    const pathObj = this.getAssetPathFromId(modelId);
+    if (!pathObj) {
+      return null;
+    }
+
+    const splitFilename = pathObj.filename.split("/");
+    const filename = splitFilename.pop() || "";
+    const path = splitFilename.join("/");
+    const imagePath =
+      pathObj.rootPath +
+      (path ? path + "/" : "") +
+      "previews/" +
+      filename.replace(/\.[^/.]+$/, ".png");
+
+    this.setAssetImageUrl(modelId, imagePath);
+
+    return imagePath;
   }
 
   // Add an item to the assets manager
@@ -771,7 +820,7 @@ export class AssetManagerService {
     //   filename: `${modelId}.gltf.glb`, // Constructed filename
     // };
     throw new Error(
-      `Asset path for model ID ${modelId} not found in assetPaths`
+      `Asset path for model ID ${modelId} not found in assetPaths : ${this.assetPaths}`
     );
   }
 

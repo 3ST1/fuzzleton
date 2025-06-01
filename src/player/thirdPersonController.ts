@@ -73,11 +73,21 @@ class PlayerController {
   // to check if the player is on the air
   private inAirState = {
     startHeight: 0, // starting height of the jump
-    limit: 3, // maximum height of a jump
+    limit: 3, // maximum height of the jump
+    defaultLimit: 3, // default max height limit of a jump
     jump: false,
     fall: false,
     hasTask: false, // Is there is a task to jump
     // startedAtTime: 0, // time when the jump started (for limit)
+  };
+
+  // jump stamina system
+  private jumpStamina = {
+    current: 3, // current nb jumps available
+    max: 3, // max nb jumps
+    regenTimer: 0, // timer for regeneration
+    regenInterval: 750, //in  ms - 0.75s btw eac regeneration ticks
+    canJump: true, // to indicate if player can jump
   };
 
   private runningState = {
@@ -104,8 +114,13 @@ class PlayerController {
   // onStepRayHelper: RayHelper;
   floorRay: any;
   floorRayHelper!: RayHelper;
+  // Add array for multiple ground rays
+  groundRays: [Ray, RayHelper | null, PhysicsRaycastResult][] = [];
   isInSleep: boolean = false;
   isWakingUp: boolean = false;
+  winMeshes: any;
+
+  private triggeredWinMeshes: Set<any> = new Set();
 
   constructor(
     scene: Scene,
@@ -117,6 +132,7 @@ class PlayerController {
     this.camera = environnement.camera;
     this.thirdPerson = thirdPers; // to use the third person view (true) or first person view (false)
     this.physicsEngine = this.scene.getPhysicsEngine() as PhysicsEngine; // get havok physics engine
+    this.winMeshes = [];
     this.init();
   }
 
@@ -325,6 +341,37 @@ class PlayerController {
     // show the ray
     floorRayHelper.show(this.scene, new Color3(0, 1, 0));
     this.floorRayHelper = floorRayHelper;
+
+    // Create multiple ground rays at different positions
+    const groundRayOffsets = [
+      new Vector3(0, 0, 0), // Center
+      new Vector3(this.hitBoxRadius * 0.7, 0, 0), // Right
+      new Vector3(-this.hitBoxRadius * 0.7, 0, 0), // Left
+      new Vector3(0, 0, this.hitBoxRadius * 0.7), // Front
+      new Vector3(0, 0, -this.hitBoxRadius * 0.7), // Back
+    ];
+
+    for (let i = 0; i < groundRayOffsets.length; i++) {
+      const ray = new Ray(Vector3.Zero(), Vector3.Down());
+      const rayHelper = new RayHelper(ray);
+
+      rayHelper.attachToMesh(
+        this.player,
+        new Vector3(0, -1, 0),
+        new Vector3(
+          groundRayOffsets[i].x,
+          -this.hitBoxHeight / 2 + 0.5,
+          groundRayOffsets[i].z
+        ),
+        1
+      );
+
+      if (this.debug) {
+        rayHelper.show(this.scene, new Color3(0, 0.5, 1));
+      }
+
+      this.groundRays.push([ray, rayHelper, new PhysicsRaycastResult()]);
+    }
   }
 
   private setPlayerSounds() {
@@ -378,24 +425,24 @@ class PlayerController {
       !this.inputMap[this.playerKeys.left] &&
       !this.inputMap[this.playerKeys.right]
     ) {
-      console.log(
-        "Not moving, in the air ? ->" +
-          this.inAirState.hasTask +
-          " on step ? ->" +
-          this.onStepState.task
-      );
+      // console.log(
+      //   "Not moving, in the air ? ->" +
+      //     this.inAirState.hasTask +
+      //     " on step ? ->" +
+      //     this.onStepState.task
+      // );
       this.isMoving = false;
       this.sounds.walking.pause(); // stop walking sound maybe put somewhere else
 
       // if not in the air => play the idle animation
       if (!this.inAirState.hasTask) {
-        console.log("Not in this air and not moving ");
+        // console.log("Not in this air and not moving ");
         this.onAnimWeight(AnimationKey.Idle);
         // this.velocity.y = -GRAVITY; // apply gravity
       } else {
         // check if ground raycast detects the ground
         if (this.onGroundRaycast.hasHit) {
-          console.log("touching ground but in the air... ");
+          // console.log("touching ground but in the air... ");
           this.inAirState.hasTask = false;
           this.inAirState.jump = false;
           this.inAirState.fall = false;
@@ -407,7 +454,7 @@ class PlayerController {
 
       // if on the steps and not moving => clear the task
       if (this.onStepState.task) {
-        console.log("Not on step and not moving ...");
+        // console.log("Not on step and not moving ...");
         this.onStepState.task = false;
         // this.speed = 1;
         // this.velocity.y = -GRAVITY; // apply gravity
@@ -473,7 +520,7 @@ class PlayerController {
     });
   }
 
-  private onCollision = (event: IPhysicsCollisionEvent) => {
+  private onCollision = async (event: IPhysicsCollisionEvent) => {
     // console.log("onCollision", event);
 
     // if (this.debug) {
@@ -530,13 +577,17 @@ class PlayerController {
       (event?.point?._y || event?.point?.y || 0) >
         this.player.position.y + this.hitBoxHeight / 2.4 // collision point is above the player (we should do /2 but /2.3 so we take a little margin precaution to be sure)
     ) {
-      console.log("hit the head");
+      // console.log("hit the head");
       // end jump since landed or hit something
       this.inAirState.hasTask = false;
       this.inAirState.jump = false;
       this.inAirState.fall = true; // now falling
       // this.velocity.y = -GRAVITY; // reset the velocity to gravity
-      this.moveDirection.y = -this.jumpImpulse * 2; // to ensure the player falls down
+
+      // if doesn't touch the ground make impulse down
+      // if (!this.isOnGround()) {
+      //   this.moveDirection.y = -this.jumpImpulse * 2; // to ensure the player falls down
+      // }
     }
 
     // if the player lands on an object => stop falling
@@ -552,7 +603,112 @@ class PlayerController {
     //   this.inAirState.jump = false;
     //   // this.velocity.y = 0; // stop falling
     // }
+
+    // Check if the player has hit a win mesh
+    if (
+      event.type === PhysicsEventType.COLLISION_STARTED && // collision started
+      this.winMeshes &&
+      this.winMeshes.length > 0
+    ) {
+      try {
+        const collidedMesh = event.collidedAgainst.transformNode as Mesh;
+
+        // Check if the collided mesh is one of the win meshes
+        for (let i = 0; i < this.winMeshes.length; i++) {
+          const [winMesh, onWin] = this.winMeshes[i];
+
+          // skip if this win mesh has already been triggered
+          if (this.triggeredWinMeshes.has(winMesh)) {
+            console.log("win mesh already triggered skipping :", winMesh.name);
+            continue;
+          }
+
+          if (collidedMesh === winMesh) {
+            console.log("Player collided with win mesh:", winMesh.name);
+
+            // mwe mark this win mesh as triggered
+            this.triggeredWinMeshes.add(winMesh);
+
+            // Stop player movement
+            this.stopPlayerMovement();
+
+            // Call the onWin callback and wait for it to finish
+            await onWin();
+            return;
+          }
+        }
+      } catch (error) {
+        console.error("Error handling win mesh collision:", error);
+      }
+    }
   };
+
+  // Stops all player movement by clearing inputs and velocity
+  private stopPlayerMovement(): void {
+    // Clear all input states
+    Object.keys(this.inputMap).forEach((key) => {
+      this.inputMap[key] = false;
+    });
+
+    // Reset movement flags
+    this.isMoving = false;
+    this.inAirState.jump = false;
+    this.inAirState.fall = false;
+    this.inAirState.hasTask = false;
+    this.onStepState.task = false;
+
+    // Reset velocity and movement
+    this.velocity.setAll(0);
+    this.moveDirection.setAll(0);
+
+    // Apply zero velocity to physics body for immediate stop
+    if (this.player?.physicsBody) {
+      this.player.physicsBody.setLinearVelocity(Vector3.Zero());
+      this.player.physicsBody.setAngularVelocity(Vector3.Zero());
+    }
+
+    // Stop walking sound
+    if (this.sounds?.walking.isPlaying) {
+      this.sounds.walking.stop();
+    }
+
+    // Switch to idle animation
+    this.onAnimWeight(AnimationKey.Idle);
+
+    // reset jump stamina
+    this.jumpStamina.current = this.jumpStamina.max;
+    this.jumpStamina.canJump = true;
+    this.jumpStamina.regenTimer = 0;
+    this.inAirState.limit = this.inAirState.defaultLimit; // Reset jump limit
+  }
+
+  public resetWinConditions(): void {
+    this.triggeredWinMeshes.clear();
+  }
+
+  public setWinCollisionMesh(winMesh, onWin: () => void): void {
+    if (winMesh) {
+      console.log("Setting win collision mesh:", winMesh.name);
+      this.winMeshes.push([winMesh, onWin]);
+    } else {
+      console.warn("Attempted to set undefined mesh as win condition");
+    }
+  }
+
+  // Checks if any ground ray detects ground
+  private isOnGround(): boolean {
+    if (this.onGroundRaycast.hasHit) {
+      return true;
+    }
+
+    for (let i = 0; i < this.groundRays.length; i++) {
+      if (this.groundRays[i][2].hasHit) {
+        return true;
+      }
+    }
+
+    return false;
+  }
 
   private checkStepCollision(): [
     Ray,
@@ -599,9 +755,8 @@ class PlayerController {
       this.onStepState.task = false; // no longer on a step
     }
 
-    if (!this.inAirState.jump && !this.onGroundRaycast.hasHit) {
-      // this.velocity.y = -GRAVITY; // apply gravity
-      this.moveDirection.y = -this.jumpImpulse / 1.25; /// 2;
+    if (!this.inAirState.jump && !this.isOnGround()) {
+      this.moveDirection.y = -this.jumpImpulse / 1.25;
     }
 
     // // if raycast detects the ground and jump is active => stop the jump
@@ -638,7 +793,7 @@ class PlayerController {
         this.inAirState.startHeight + this.inAirState.limit && // if player has exceeded jump height limit
       this.inAirState.jump // player still jumping
     ) {
-      console.log("jump limit reache => start falling");
+      // console.log("jump limit reache => start falling");
       this.inAirState.jump = false; // end the jump
       this.inAirState.fall = true; // mark as falling
       // this.velocity.y = -GRAVITY; // Apply gravity to fall
@@ -757,6 +912,9 @@ class PlayerController {
     // Ensure that the scene and player are available
     if (!this.scene || !this.player) return;
 
+    // update jump stamina regen
+    this.updateJumpStamina(deltaTime);
+
     // ensure laying anim is playing if the player is sleeping
     if (this.isInSleep && !this.isWakingUp) {
       this.onAnimWeight(AnimationKey.Laying);
@@ -771,10 +929,17 @@ class PlayerController {
     }
 
     // Cast a ray to check if the player is on the ground
-    // const { x, y, z } = this.player.position;
     const start = this.floorRay.origin.clone();
     const end = start.add(this.floorRay.direction.scale(this.floorRay.length));
     this.physicsEngine?.raycastToRef(start, end, this.onGroundRaycast);
+
+    // Cast rays for all ground rays
+    for (let i = 0; i < this.groundRays.length; i++) {
+      const [ray, rayHelper, res] = this.groundRays[i];
+      const g_start = ray.origin.clone();
+      const g_end = g_start.add(ray.direction.scale(ray.length));
+      this.physicsEngine?.raycastToRef(g_start, g_end, res);
+    }
 
     // Raycast for steps
     for (let i = 0; i < this.stepRays.length; i++) {
@@ -793,22 +958,25 @@ class PlayerController {
 
     // for debugging
     // show the floor ray (if the player is on the ground)
-    if (this.debug && this.onGroundRaycast.hasHit) {
+    if (this.debug && this.isOnGround()) {
       this.floorRayHelper.show(this.scene, new Color3(0, 1, 0));
+
+      // Highlight any ground ray that hit something
+      for (let i = 0; i < this.groundRays.length; i++) {
+        const [ray, rayHelper, res] = this.groundRays[i];
+        if (res.hasHit && rayHelper) {
+          rayHelper.show(this.scene, new Color3(0, 1, 0.5));
+        } else if (rayHelper) {
+          rayHelper.hide();
+        }
+      }
     } else {
       this.floorRayHelper.hide();
-    }
-
-    // show the step ray (if the player is near a small step )
-    if (this.debug && hitStepRays.length > 0) {
-      hitStepRays.forEach((ray) => {
-        if (ray[1]) ray[1].show(this.scene, new Color3(1, 0, 0));
-      });
-      // this.onStepRayHelper.show(this.scene, new Color3(1, 0, 0));
-    } else {
-      this.stepRays.forEach((ray) => {
-        if (ray[1]) ray[1].hide();
-      });
+      if (!this.debug) {
+        this.groundRays.forEach((ray) => {
+          if (ray[1]) ray[1].hide();
+        });
+      }
     }
 
     // check if player is moving based on inputMap and update playerDirection
@@ -833,7 +1001,7 @@ class PlayerController {
       }
 
       // If not jumping and on the ground => play the running animation
-      if (!this.inAirState.jump && this.onGroundRaycast.hasHit) {
+      if (!this.inAirState.jump && this.isOnGround()) {
         this.onAnimWeight(AnimationKey.Running);
       }
 
@@ -862,24 +1030,56 @@ class PlayerController {
       this.inputMap[this.playerKeys.jumping] &&
       !this.inAirState.jump && // not already jumping
       !this.inAirState.hasTask && // no jump task
-      // !this.inAirState.hasTask // no jump task
-      this.onGroundRaycast.hasHit // on the ground
+      this.isOnGround() && // Use new method instead of onGroundRaycast.hasHit
+      this.jumpStamina.current > 0 // Check if player has jump stamina
     ) {
-      console.log("jump");
+      // Calculate jump height based on stamina
+      // Full stamina = full height, less stamina = less height
+      const jumpHeightPercentage =
+        this.jumpStamina.current / this.jumpStamina.max;
+      this.inAirState.limit =
+        this.inAirState.defaultLimit * jumpHeightPercentage;
+
+      // console.log(
+      //   `DEBUG jump height set to: ${this.inAirState.limit.toFixed(2)} (${(
+      //     jumpHeightPercentage * 100
+      //   ).toFixed(0)}% of max)`
+      // );
+
+      // decrease jump stamina
+      this.jumpStamina.current--;
+
+      // console.log(
+      //   `DEBUG jump stamina REDUCED: ${this.jumpStamina.current}/${this.jumpStamina.max}`
+      // );
+
+      // if out of jumps mark as unable to jump
+      if (this.jumpStamina.current <= 0) {
+        this.jumpStamina.canJump = false;
+
+        // console.warn("DEBUG player out of jump stamina");
+      }
+
+      // console.log("jump");
       this.inAirState.jump = true;
       this.inAirState.startHeight = this.player.position.y; // record the height from which the jump starts (for limit)
       // this.velocity.y = GRAVITY; // Apply upward force
       this.onAnimWeight(AnimationKey.Falling); // Start the jump animation (to change to Jumping we will se but for the moment the anim is not right )
       // see if we keep the anim here
+    } else if (
+      this.inputMap[this.playerKeys.jumping] &&
+      !this.inAirState.jump &&
+      !this.inAirState.hasTask &&
+      this.isOnGround() &&
+      this.jumpStamina.current <= 0
+    ) {
+      // console.log("DEBUG attempted jump but no stamina left");
+      // maybe we could add an anim tired here ? TO DO ?
     }
 
     // Handle end of falling when the player hits the ground
-    if (
-      this.onGroundRaycast.hasHit &&
-      this.inAirState.fall &&
-      !this.inAirState.jump
-    ) {
-      console.log("just landed");
+    if (this.isOnGround() && this.inAirState.fall && !this.inAirState.jump) {
+      // console.log("just landed");
       this.inAirState.fall = false;
       this.inAirState.hasTask = false; // Reset jump task
       this.onStepState.task = false; // Reset step task TO TRY????????????????????????????????????????????????????????????????????????????????????,
@@ -894,17 +1094,17 @@ class PlayerController {
     // Handle the state after releasing the space key
     if (
       this.inputMap[this.playerKeys.jumping] !== undefined &&
-      !this.inputMap[this.playerKeys.jumping] && // Space key is released
-      this.onGroundRaycast.hasHit && // player on the ground
-      this.inAirState.hasTask // jump task active
+      !this.inputMap[this.playerKeys.jumping] &&
+      this.isOnGround() &&
+      this.inAirState.hasTask
     ) {
-      console.log("space key released & not in air anymore");
+      // console.log("space key released & not in air anymore");
       this.inAirState.hasTask = false; // clear the jump task
       // this.velocity.y = -GRAVITY; // Apply gravity
     }
 
     // if the player is not jumping and is falling (no ground detected)
-    if (!this.inAirState.jump && !this.onGroundRaycast.hasHit) {
+    if (!this.inAirState.jump && !this.isOnGround()) {
       // console.log("free fall");
       this.inAirState.fall = true; // mark as falling
       this.inAirState.jump = false; // end jump
@@ -917,7 +1117,7 @@ class PlayerController {
     if (
       !this.inAirState.jump &&
       !this.inAirState.hasTask &&
-      this.onGroundRaycast.hasHit &&
+      this.isOnGround() &&
       this.curAnimParam.anim !== AnimationKey.Idle &&
       !this.isMoving
     ) {
@@ -941,6 +1141,45 @@ class PlayerController {
 
     // update player
     this.movePlayer(deltaTime);
+  }
+
+  // Add a method to update jump stamina over time
+  private updateJumpStamina(deltaTime: number): void {
+    // Only regenerate stamina when on the ground
+    if (!this.isOnGround()) {
+      return;
+    }
+
+    // If already at max stamina nothing to do
+    if (this.jumpStamina.current >= this.jumpStamina.max) {
+      this.jumpStamina.current = this.jumpStamina.max;
+      this.jumpStamina.canJump = true;
+      this.jumpStamina.regenTimer = 0;
+      return;
+    }
+
+    // Increment the regeneration timer
+    this.jumpStamina.regenTimer += deltaTime;
+
+    // If enough time has passed
+    if (this.jumpStamina.regenTimer >= this.jumpStamina.regenInterval) {
+      console.log("DEBUG timer : ", this.jumpStamina.regenTimer);
+
+      // Add one jump stamina point
+      this.jumpStamina.current++;
+
+      // Reset timer
+      this.jumpStamina.regenTimer = 0;
+
+      // if we have at least one jump available, player can jump
+      if (this.jumpStamina.current > 0) {
+        this.jumpStamina.canJump = true;
+      }
+
+      // console.warn(
+      //   `DEBUG jump stamina regenerated: ${this.jumpStamina.current}/${this.jumpStamina.max}`
+      // );
+    }
   }
 
   // Animation state tracking
@@ -1034,7 +1273,7 @@ class PlayerController {
   ///////////////////////////////
 
   public setPlayerToSleep() {
-    console.log("SETTING TO SLEEP");
+    // console.log("SETTING TO SLEEP");
     // Animation Laying
     // this.onAnimWeight(AnimationKey.Laying);
     this.isInSleep = true;
@@ -1052,6 +1291,13 @@ class PlayerController {
     this.isInSleep = false;
     this.player.position.y = 3;
     this.isWakingUp = true;
+
+    // Reset jump stamina and jump limit
+    this.jumpStamina.current = this.jumpStamina.max;
+    this.jumpStamina.canJump = true;
+    this.jumpStamina.regenTimer = 0;
+    this.inAirState.limit = this.inAirState.defaultLimit; // Reset jump limit
+
     // this.player.rotate(new Vector3(0, 1, 0), Math.PI);
     // Play the StandingUp animation
     // this.onAnimWeight(AnimationKey.StandingUp);

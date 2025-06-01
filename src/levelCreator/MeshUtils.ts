@@ -8,6 +8,7 @@ import {
   LinesMesh,
   AbstractMesh,
   AssetContainer,
+  Texture,
 } from "@babylonjs/core";
 
 export class MeshUtils {
@@ -24,6 +25,21 @@ export class MeshUtils {
     ground.material = groundMaterial;
     ground.position.y = 0;
 
+    const textureLink = "/api/assets/textures/woodPlanks.jpg"; // https://mycould.tristan-patout.fr/api/fuzzelton/assets/textures/woodPlanks.jpg
+    const groundTexture = new Texture(textureLink, scene);
+    groundTexture.uScale = 100;
+    groundTexture.vScale = 100;
+
+    ground.material = new StandardMaterial("groundMaterial", scene);
+    const groundMat = ground.material as StandardMaterial;
+    groundMat.diffuseTexture = groundTexture;
+
+    // no light reflection
+    groundMat.specularColor = new Color3(0.1, 0.1, 0.1); // almost no reflection
+    groundMat.specularPower = 64; // low for a less brillant
+
+    ground.receiveShadows = true;
+
     return ground;
   }
 
@@ -34,7 +50,7 @@ export class MeshUtils {
     const step = gridSize;
     const halfSize = size / 2;
 
-    // Create grid lines along X axis
+    // grid lines along X axis
     for (let i = -halfSize; i <= halfSize; i += step) {
       gridLines.push([
         new Vector3(i, 0.1, -halfSize),
@@ -42,7 +58,7 @@ export class MeshUtils {
       ]);
     }
 
-    // Create grid lines along Z axis
+    // grid lines along Z axis
     for (let i = -halfSize; i <= halfSize; i += step) {
       gridLines.push([
         new Vector3(-halfSize, 0.1, i),
@@ -63,7 +79,7 @@ export class MeshUtils {
     gridMat.alpha = 0.5;
     gridMesh.material = gridMat;
 
-    // Initially hidden
+    // initially hidden
     gridMesh.isVisible = false;
 
     return gridMesh;

@@ -55,7 +55,8 @@ export class Level {
   ) {
     this.scene = scene;
     this.gameEnv = environment;
-    this.lvlGen = new LevelGenerator(this.scene, this.gameEnv);
+    this.lvlGen = new LevelGenerator(this.scene, this.gameEnv); // to generate random objects
+    // this.lvlGen.generateLevel();
     this.assetManagerService = assetsManager;
     this.player = player;
     this.initialLevelData = initialLevelData; // Store the initial level data if provided
@@ -77,7 +78,7 @@ export class Level {
         this.scene,
         this.gameEnv,
         "wall_O0",
-        new Vector3(0, 0, 150),
+        new Vector3(0, 0, 250),
         500,
         100,
         1
@@ -86,7 +87,7 @@ export class Level {
         this.scene,
         this.gameEnv,
         "wall_O1",
-        new Vector3(0, 0, -150),
+        new Vector3(0, 0, -250),
         500,
         100,
         1
@@ -95,7 +96,7 @@ export class Level {
         this.scene,
         this.gameEnv,
         "wall_O2",
-        new Vector3(150, 0, 0),
+        new Vector3(250, 0, 0),
         1,
         100,
         500
@@ -104,7 +105,7 @@ export class Level {
         this.scene,
         this.gameEnv,
         "wall_O3",
-        new Vector3(-150, 0, 0),
+        new Vector3(-250, 0, 0),
         1,
         100,
         500
@@ -885,6 +886,8 @@ export class Level {
 
   public async initLevel(): Promise<void> {
     console.log("init Level...");
+    this.generateWalls();
+    this.loadBlanketFort();
 
     if (this.initialLevelData) {
       console.log("Initializing level with provided data...");
@@ -897,12 +900,8 @@ export class Level {
       );
 
       await lvlFromFile.load();
-      // Wait for assets loaded by levelFromFile's assetManager
-      // await lvlFromFile.assetManager.loadAssetsAsync();
     } else {
       // Default level loading if no test data is provided
-      this.generateWalls();
-      this.loadBlanketFort();
       // this.loadSpikeRoller();
       this.createPillowProgrammatically();
       this.lvlGen.generateStairs();
@@ -910,11 +909,7 @@ export class Level {
       this.lvlGen.generatePlatforms();
       this.physicsPlane();
 
-      // Loading the new added assets if any
       await this.assetManagerService.loadAssetsAsync();
-
-      this.placeBlanketFort();
-
       // // making it async to wait for the assets to be loaded
       // await new Promise<void>((resolve) => {
       //   assetManager.onFinish = () => resolve();
@@ -929,6 +924,8 @@ export class Level {
         this.assetManagerService
       );
     }
+
+    this.placeBlanketFort();
     console.log("Level Loaded!");
   }
 }

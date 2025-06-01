@@ -32,7 +32,7 @@ class LevelGenerator {
     this.minZ = minZ;
     this.maxZ = maxZ;
 
-    this.generateLevel();
+    // this.generateLevel();
   }
   getNewRandomPosition(): Vector3 {
     const x = this.lastX + Math.random() * 10 - 5;
@@ -180,7 +180,7 @@ class LevelGenerator {
     if (position.z) this.lastZ = position.z;
   }
 
-  generateLevel(): void {
+  public generateLevel(): void {
     this.generateUpwardLevel(100);
   }
 
@@ -195,7 +195,6 @@ class LevelGenerator {
         true
       );
 
-      
       // Add the random objects to the level objects
       this.generatedLevelObjects.push(obj);
     }

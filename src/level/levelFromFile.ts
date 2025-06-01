@@ -1,5 +1,4 @@
 import * as BABYLON from "@babylonjs/core";
-
 import {
   AnimationGroup,
   Animation,
@@ -18,13 +17,25 @@ import {
   PhysicsShape,
   PhysicsMaterial,
 } from "@babylonjs/core";
+import {
+  SceneSerializer,
+  SerializedMesh,
+  SerializedScene,
+} from "../levelCreator/SceneSerializer";
 // import { Debug } from "@babylonjs/inspector";
 import { AssetManagerService } from "../AssetManagerService";
 import { ObjectController } from "../levelCreator/ObjectController";
 import { GameEnvironment } from "../GameEnvironnement";
 import PlayerController from "../player/thirdPersonController";
+import { Control } from "@babylonjs/gui/2D/controls/control";
+import { Rectangle } from "@babylonjs/gui/2D/controls/rectangle";
+import { AdvancedDynamicTexture } from "@babylonjs/gui/2D/advancedDynamicTexture";
+import { TextBlock } from "@babylonjs/gui/2D/controls/textBlock";
+import { Image } from "@babylonjs/gui/2D/controls/image";
+import { UIComponentsFactory } from "../levelCreator/UIComponentsFactory";
+import { StackPanel } from "@babylonjs/gui";
 // TO TEST / DEBUG
-const meshesDocDataExemple = {
+const meshesDocDataExemple: SerializedScene = {
   name: "MyLevel",
   meshes: [
     {
@@ -32,7 +43,7 @@ const meshesDocDataExemple = {
       type: "model",
       modelId: "tileLarge_teamYellow",
       rootFolder: "/kaykit/",
-      filename: "tileLarge_teamYellow.gltf.glb",
+      filename: "tileLarge_teamYellow.glb",
       position: {
         x: 30,
         y: 0,
@@ -55,7 +66,7 @@ const meshesDocDataExemple = {
       type: "model",
       modelId: "tileLarge_teamYellow",
       rootFolder: "/kaykit/",
-      filename: "tileLarge_teamYellow.gltf.glb",
+      filename: "tileLarge_teamYellow.glb",
       position: {
         x: 36,
         y: 0,
@@ -87,7 +98,7 @@ const meshesDocDataExemple = {
       type: "model",
       modelId: "ring_teamYellow",
       rootFolder: "/kaykit/",
-      filename: "ring_teamYellow.gltf.glb",
+      filename: "ring_teamYellow.glb",
       position: {
         x: 52.72068657665831,
         y: 0,
@@ -119,7 +130,7 @@ const meshesDocDataExemple = {
       type: "model",
       modelId: "barrierLadder",
       rootFolder: "/kaykit/",
-      filename: "barrierLadder.gltf.glb",
+      filename: "barrierLadder.glb",
       position: {
         x: -11.65918288993208,
         y: -3.552713678800501e-15,
@@ -148,7 +159,7 @@ const meshesDocDataExemple = {
       type: "model",
       modelId: "swiperLong_teamRed",
       rootFolder: "/kaykit/",
-      filename: "swiperLong_teamRed.gltf.glb",
+      filename: "swiperLong_teamRed.glb",
       position: {
         x: 3.3844833580966442,
         y: 0,
@@ -186,7 +197,7 @@ const meshesDocDataExemple = {
       type: "model",
       modelId: "ball_teamYellow",
       rootFolder: "/kaykit/",
-      filename: "ball_teamYellow.gltf.glb",
+      filename: "ball_teamYellow.glb",
       position: {
         x: -12.785085940705756,
         y: 10,
@@ -209,13 +220,14 @@ const meshesDocDataExemple = {
         friction: 0.2,
         restitution: 0.3,
       },
+      isWinMesh: true,
     },
     {
       id: "placed-tileLow_teamRed-1744876237326",
       type: "model",
       modelId: "tileLow_teamRed",
       rootFolder: "/kaykit/",
-      filename: "tileLow_teamRed.gltf.glb",
+      filename: "tileLow_teamRed.glb",
       position: {
         x: 95.08025769537853,
         y: 10,
@@ -281,7 +293,7 @@ export class levelFromFile {
     gameEnv: GameEnvironment,
     player: PlayerController,
     assetManager: AssetManagerService,
-    meshesDoc: any = meshesDocDataExemple // this receives the parsed JSON created in the levelCreator (see meshesDocDataExemple above for example)
+    meshesDoc: SerializedScene = meshesDocDataExemple // this receives the parsed JSON created in the levelCreator
   ) {
     this.scene = scene;
     this.gameEnv = gameEnv;
@@ -301,14 +313,14 @@ export class levelFromFile {
     if (this.meshesDoc) {
       // if meshesDoc data provided we load the level
       console.log("Loading level from meshesDoc:", this.meshesDoc);
-      this.addNeededAssetsToTheAssetManager(this.meshesDoc);
+      this._addNeededAssetsToTheAssetManager(this.meshesDoc);
       await this.loadLevel(this.meshesDoc); // This will call assetManager.loadAssetsAsync()
     } else {
       console.warn("levelFromFile: No meshesDoc provided to load.");
     }
   }
 
-  addNeededAssetsToTheAssetManager(meshesDoc: any) {
+  private _addNeededAssetsToTheAssetManager(meshesDoc: any) {
     console.log("Adding needed assets to the level asset manager...");
     console.log(meshesDoc);
     console.log("meshes : ", meshesDoc.meshes);
@@ -334,7 +346,7 @@ export class levelFromFile {
     });
   }
 
-  private loadModelMesh(meshData: any): Mesh | null | undefined {
+  private _loadModelMesh(meshData: any): Mesh | null | undefined {
     console.warn(
       `levelFromFile : Creating model mesh with ID: ${meshData.modelId}`
     );
@@ -362,14 +374,14 @@ export class levelFromFile {
     console.warn("Loading level from file : ", meshesDoc);
     // await this.assetManager.loadAssetsAsync(this.scene);
     await this.assetManager.loadAssetsAsync();
-    meshesDoc.meshes.forEach((meshData: any) => {
+    meshesDoc.meshes.forEach((meshData: SerializedMesh) => {
       console.warn("Loading mesh data: ", meshData);
       if (meshData.type === "model") {
-        const newMesh = this.loadModelMesh(meshData);
+        const newMesh = this._loadModelMesh(meshData);
         console.warn("mesh returned : ", newMesh);
         if (newMesh instanceof Mesh) {
           console.warn("applying mesh properties ", newMesh);
-          this.applyMeshProperties(newMesh, meshData);
+          this._applyMeshProperties(newMesh, meshData);
         }
       } else {
         console.error(`Unknown mesh type: ${meshData.type}`);
@@ -377,9 +389,9 @@ export class levelFromFile {
     });
   }
 
-  public applyMeshProperties(mesh: Mesh, meshData: any): void {
+  private _applyMeshProperties(mesh: Mesh, meshData: SerializedMesh): void {
     console.warn(
-      `levelFromFile.ts : Applying properties to mesh: ${mesh.name} with ID: ${meshData.id}`
+      `levelFromFile.ts : applying properties to mesh: ${mesh.name} with id: ${meshData.id}`
     );
     // console.log(`Successfully created mesh: ${mesh.name}`);
 
@@ -390,63 +402,46 @@ export class levelFromFile {
       meshData.scaling.z
     );
 
-    // Set rotation if available
-    // if (meshData.rotation) {
-    //   mesh.rotationQuaternion = new Quaternion(
-    //     meshData.rotation.x,
-    //     meshData.rotation.y,
-    //     meshData.rotation.z,
-    //     meshData.rotation.w
+    // Initialize metadata if needed
+    if (!mesh.metadata) {
+      mesh.metadata = {};
+    }
+
+    // Apply physics data first it may return a new merged mesh
+    let activeMesh = mesh;
+    const mergedMesh = this._applyPhysicsAndRotation(mesh, meshData);
+    if (mergedMesh) {
+      activeMesh = mergedMesh;
+      // console.log(
+      //   `using merged mesh for further operations: ${activeMesh.name}`
+      // );
+    }
+    // else {
+    //   console.log(
+    //     `no physics mesh created, using original: ${activeMesh.name}`
     //   );
     // }
 
-    // Initialize metadata if needed
-    if (!mesh.metadata) {
-      mesh.metadata = {};
-    }
-
-    // Initialize metadata if needed
-    if (!mesh.metadata) {
-      mesh.metadata = {};
-    }
-
-    // Apply physics data first - it may return a new merged mesh
-    let activeMesh = mesh;
-    const mergedMesh = this.applyPhysicsData(mesh, meshData);
-    if (mergedMesh) {
-      activeMesh = mergedMesh;
-      console.log(
-        `Using merged mesh for further operations: ${activeMesh.name}`
-      );
-    } else {
-      console.log(
-        `No physics mesh created, using original: ${activeMesh.name}`
-      );
-    }
-
+    // Apply mesh movements animation
     if (meshData.movement && meshData.movement.enabled) {
-      this.applyMovementData(mesh, meshData);
+      this._applyMovement(mesh, meshData);
     }
 
-    // Apply rotation animation data using the correct mesh
-    // this.applyRotationAnimationData(activeMesh, meshData);
-
-    // Apply movement data if available
-    // this.applyMovementData(mesh, meshData);
+    this._applyWinMesh(activeMesh, meshData);
 
     // Apply additional metadata from the saved data
-    if (meshData.metadata) {
-      // Preserve existing metadata and add any missing properties
-      Object.keys(meshData.metadata).forEach((key) => {
-        if (key !== "type" && key !== "modelId") {
-          // Skip these as they're already set
-          mesh.metadata[key] = meshData.metadata[key];
-        }
-      });
-    }
+    // if (meshData.metadata) {
+    //   // Preserve existing metadata and add any missing properties
+    //   Object.keys(meshData.metadata).forEach((key) => {
+    //     if (key !== "type" && key !== "modelId") {
+    //       // Skip these as they're already set
+    //       mesh.metadata[key] = meshData.metadata[key];
+    //     }
+    //   });
+    // }
   }
 
-  private applyMovementData(mesh: Mesh, meshData: any): void {
+  private _applyMovement(mesh: Mesh, meshData: SerializedMesh): void {
     if (!meshData.movement || !meshData.movement.enabled) {
       return;
     }
@@ -468,6 +463,68 @@ export class levelFromFile {
       meshData.movement.endPosition.z
     );
 
+    // Define the startMovementAnimation function inside applyMovementData
+    const startMovementAnimation = (
+      pathPoints: Vector3[],
+      speed: number,
+      meshId: string,
+      mesh: Mesh
+    ) => {
+      if (!mesh || pathPoints.length < 2) return;
+
+      // Calculate total path length to determine duration
+      let totalDistance = 0;
+      for (let i = 1; i < pathPoints.length; i++) {
+        totalDistance += Vector3.Distance(pathPoints[i - 1], pathPoints[i]);
+      }
+      const duration = totalDistance / speed;
+
+      // Create animation group
+      const animationGroup = new AnimationGroup(
+        `previewMotion_${meshId}`,
+        this.scene
+      );
+
+      // Position animation
+      const positionAnim = new Animation(
+        `anim_position_${meshId}`,
+        "position",
+        30,
+        Animation.ANIMATIONTYPE_VECTOR3,
+        Animation.ANIMATIONLOOPMODE_CYCLE
+      );
+
+      //  keyframes for movement along the path
+      const keyframes: { frame: number; value: Vector3 }[] = [];
+      const segmentLength = 1 / (pathPoints.length - 1);
+
+      // forward movement
+      for (let i = 0; i < pathPoints.length; i++) {
+        keyframes.push({
+          frame: i * (30 * duration * segmentLength),
+          value: pathPoints[i].clone(),
+        });
+      }
+
+      // backwards movement
+      for (let i = pathPoints.length - 1; i >= 0; i--) {
+        keyframes.push({
+          frame:
+            30 * duration +
+            (pathPoints.length - 1 - i) * (30 * duration * segmentLength),
+          value: pathPoints[i].clone(),
+        });
+      }
+
+      positionAnim.setKeys(keyframes);
+
+      // Add animation to mesh and animation group
+      animationGroup.addTargetedAnimation(positionAnim, mesh);
+
+      // Start playing the animation in loop
+      animationGroup.play(true);
+    };
+
     // Process control points if they exist
     if (
       meshData.movement.controlPoints &&
@@ -487,7 +544,7 @@ export class levelFromFile {
 
       // Start the animation with the control points
       if (mesh.metadata.controlPoints.length >= 2) {
-        this.startMovementAnimation(
+        startMovementAnimation(
           mesh.metadata.controlPoints.map(
             (point: any) => new Vector3(point.x, point.y, point.z)
           ),
@@ -504,7 +561,7 @@ export class levelFromFile {
         `Creating simple path for mesh ${mesh.name} with start and end points`
       );
 
-      this.startMovementAnimation(
+      startMovementAnimation(
         simplePathPoints,
         mesh.metadata.speed,
         mesh.name,
@@ -513,150 +570,25 @@ export class levelFromFile {
     }
   }
 
-  private startMovementAnimation(
-    pathPoints: Vector3[],
-    speed: number,
-    meshId: string,
-    previewMesh: Mesh
-  ) {
-    if (!previewMesh || pathPoints.length < 2) return;
-
-    // Calculate total path length to determine duration
-    let totalDistance = 0;
-    for (let i = 1; i < pathPoints.length; i++) {
-      totalDistance += Vector3.Distance(pathPoints[i - 1], pathPoints[i]);
-    }
-    const duration = totalDistance / speed;
-
-    // Create animation group
-    const animationGroup = new AnimationGroup(
-      `previewMotion_${meshId}`,
-      this.scene
-    );
-
-    // Position animation
-    const positionAnim = new Animation(
-      `anim_position_${meshId}`,
-      "position",
-      30,
-      Animation.ANIMATIONTYPE_VECTOR3,
-      Animation.ANIMATIONLOOPMODE_CYCLE
-    );
-
-    //  keyframes for movement along the path
-    const keyframes: { frame: number; value: Vector3 }[] = [];
-    const segmentLength = 1 / (pathPoints.length - 1);
-
-    // forward movement
-    for (let i = 0; i < pathPoints.length; i++) {
-      keyframes.push({
-        frame: i * (30 * duration * segmentLength),
-        value: pathPoints[i].clone(),
-      });
-    }
-
-    // backwards movement
-    for (let i = pathPoints.length - 1; i >= 0; i--) {
-      keyframes.push({
-        frame:
-          30 * duration +
-          (pathPoints.length - 1 - i) * (30 * duration * segmentLength),
-        value: pathPoints[i].clone(),
-      });
-    }
-
-    positionAnim.setKeys(keyframes);
-
-    // Add animation to mesh and animation group
-    animationGroup.addTargetedAnimation(positionAnim, previewMesh);
-
-    // Start playing the animation in loop
-    animationGroup.play(true);
-
-    // console.log(
-    //   `Animation started for mesh ${meshId} with ${pathPoints.length} points and duration ${duration}`
-    // );
-  }
-
-  // private applyPhysicsData(mesh: Mesh, meshData: any): void {
-  //   if (!meshData.physics || !meshData.physics.enabled) {
-  //     return;
-  //   }
-
-  //   mesh.metadata.physics = {
-  //     enabled: true,
-  //     mass: meshData.physics.mass || 0,
-  //     friction: meshData.physics.friction || 0.2,
-  //     restitution: meshData.physics.restitution || 0.2,
-  //   };
-
-  //   console.warn(mesh);
-  //   const childs = mesh.getChildren();
-  //   console.warn("nb childs:", childs.length);
-  //   const childMeshes = childs.filter(
-  //     (mesh) => (mesh as Mesh).getTotalVertices() > 0
-  //   );
-
-  //   console.warn("child meshes having vertices :", childMeshes.length);
-
-  //   const mass = mesh.metadata.physics.mass;
-  //   const friction = mesh.metadata.physics.friction;
-  //   const restitution = mesh.metadata.physics.restitution;
-  //   // childMeshes.forEach((mesh) => {
-  //   //   console.warn("child mesh : ", mesh);
-  //   //   const physicsAggregate = new PhysicsAggregate(
-  //   //     mesh as TransformNode,
-  //   //     PhysicsShapeType.MESH,
-  //   //     {
-  //   //       mass: mass,
-  //   //       friction: friction,
-  //   //       restitution: restitution,
-  //   //     },
-  //   //     this.scene
-  //   //   );
-  //   // });
-
-  //   // Create a compound physics body for the entire mesh hierarchy
-  //   const physicsAggregate = new PhysicsAggregate(
-  //     mesh,
-  //     PhysicsShapeType.MESH,
-  //     {
-  //       mass: mass,
-  //       friction: friction,
-  //       restitution: restitution,
-
-  //       includeChildMeshes: true
-  //     },
-  //     this.scene
-  //   );
-  //   // physicsAggregate.body.setMotionType(PhysicsMotionType.DYNAMIC);
-  //   // physicsAggregate.body.disablePreStep = false;
-
-  //   this.gameEnv.addShadowsToMesh(mesh);
-
-  //   console.log(
-  //     `Loaded physics data for mesh ${mesh.name}: mass=${mesh.metadata.physics.mass}, friction=${mesh.metadata.physics.friction}, restitution=${mesh.metadata.physics.restitution}`
-  //   );
-  // }
-
-  private applyPhysicsData(mesh: Mesh, meshData: any): Mesh | void {
+  private _applyPhysicsAndRotation(
+    mesh: Mesh,
+    meshData: SerializedMesh
+  ): Mesh | void {
     let mass = 0;
     let friction = 0.2;
     let restitution = 0.2;
 
-    // Initialize physics metadata with defaults first
     if (!mesh.metadata) {
       mesh.metadata = {};
     }
 
-    // Get physics values from meshData instead of from mesh.metadata (which doesn't exist yet)
     if (meshData.physics && meshData.physics.enabled) {
       mass = meshData.physics.mass || 0;
       friction = meshData.physics.friction || 0.2;
       restitution = meshData.physics.restitution || 0.2;
     }
 
-    // Now set up the physics metadata with the values we just determined
+    // set up the physics metadata with the values we just determined
     mesh.metadata.physics = {
       enabled: true,
       mass: mass,
@@ -673,15 +605,17 @@ export class levelFromFile {
           childMesh instanceof Mesh && childMesh.getTotalVertices() > 0
       );
 
-    console.log(
-      `Found ${childMeshes.length} child meshes with vertices for ${mesh.name}`
-    );
+    // console.log(
+    //   `Found ${childMeshes.length} child meshes with vertices for ${mesh.name}`
+    // );
 
     if (childMeshes.length === 0) {
       console.warn(`No geometry found for physics in ${mesh.name}`);
       return;
     }
     // console.warn("debug metatdat : ", meshData);
+
+    // CREATING A ROTATING MESH
     if (meshData.rotation_animation && meshData.rotation_animation?.enabled) {
       // console.warn("CREATING A ROTATING MESH");
       childMeshes.forEach((child) => {
@@ -703,113 +637,30 @@ export class levelFromFile {
           // child.rotate(new Vector3(0, 1, 0), 1 * 0.01);
           child.rotate(
             new Vector3(
-              meshData.rotation_animation.axis.x,
-              meshData.rotation_animation.axis.y,
-              meshData.rotation_animation.axis.z
+              meshData.rotation_animation?.axis.x || 0,
+              meshData.rotation_animation?.axis.y || 1,
+              meshData.rotation_animation?.axis.z || 0
             ),
-            1 * meshData.rotation_animation.speed
+            1 * (meshData.rotation_animation?.speed ?? 0.01)
           );
         });
       });
       // physicsAggregate.body.setMotionType(PhysicsMotionType.ANIMATED);
 
-      // mergedMesh.setPivotPoint(new Vector3(0, 1, 0));
-      // this.scene.registerBeforeRender(() => {
-      //   mergedMesh.rotate(new Vector3(0, 1, 0), 1 * 0.01);
-      // });
+      // CREATING A NON ROTATING MESH
     } else {
-      // Create a clone that combines all child geometries into one mesh
-      // const mergedMesh = Mesh.MergeMeshes(
-      //   childMeshes as Mesh[],
-      //   true,
-      //   true,
-      //   undefined,
-      //   false,
-      //   true
-      // );
-      // // const mergedMesh = null;
-
-      // if (!mergedMesh) {
-      //   console.error("Failed to merge meshes for physics");
-      //   return;
-      // }
-
-      // // Position the merged mesh at the parent's position
-      // mergedMesh.position = mesh.position.clone();
-      // mergedMesh.rotationQuaternion = mesh.rotationQuaternion
-      //   ? mesh.rotationQuaternion.clone()
-      //   : null;
-      // mergedMesh.scaling = mesh.scaling.clone();
-
-      // // Make it invisible - we'll use the original meshes for rendering
-      // mergedMesh.isVisible = true;
-      // mergedMesh.name = `${mesh.name}_merged_physics`;
-
       mesh.refreshBoundingInfo(true);
       mesh.computeWorldMatrix(true);
 
-      // Create a single physics aggregate for the parent mesh
-      // const physicsAggregate = new PhysicsAggregate(
-      //   mesh,
-      //   PhysicsShapeType.MESH,
-      //   {
-      //     mass: mass,
-      //     friction: friction,
-      //     restitution: restitution,
-      //     includeChildMeshes: true, // This makes all child meshes part of one compound body
-      //   },
-      //   this.scene
-      // );
-
-      // // If this has mass, make sure it's dynamic
-      // if (mass > 0) {
-      //   physicsAggregate.body.setMotionType(PhysicsMotionType.DYNAMIC);
-      // }
-
-      // console.log(
-      //   `Created compound physics body for ${mesh.name} with ${childMeshes.length} child meshes`
-      // );
-
+      // TO REMOVE //////////////////////////////////////////////////////////////////////////////////////////
+      ///// using THE MESH SHAPE COLLISIONS BOX INSTEAD OF A BOX
       // https://playground.babylonjs.com/#K7TJIG#400
       // https://forum.babylonjs.com/t/creating-a-box-physics-body-for-an-external-mesh-transform-node/47426
       // https://playground.babylonjs.com/#S7E00P#408
       // https://forum.babylonjs.com/t/collision-impostors-for-imported-meshes-imperfect/42394/3
       // const newRoot = new TransformNode("newRoot");
       // mesh.parent = newRoot;
-
-      // const { min, max } = newRoot.getHierarchyBoundingVectors();
-
-      // const size = max.subtract(min);
-
-      // const center = min.add(max).scale(0.5);
-
-      // console.log("mesh world center", center.toString());
-
-      // const shape = new PhysicsShapeBox(
-      //   new Vector3(center.x, center.y, center.z),
-      //   Quaternion.Identity(),
-      //   size,
-      //   this.scene
-      // );
-
-      ////////////////////////////////////////////// TO FIX USING A THE MESH SHAPE COLLISIONS BOX INSTEAD OF A BOX
-      // const shape = new PhysicsShape(
-      //   {
-      //     type: PhysicsShapeType.CONVEX_HULL,
-      //     parameters: { mesh: mesh, includeChildMeshes: true },
-      //   },
-      //   this.scene
-      // );
-
-      // const body = new PhysicsBody(
-      //   newRoot,
-      //   PhysicsMotionType.DYNAMIC,
-      //   false,
-      //   this.scene
-      // );
-      // body.shape = shape;
-      // body.setMassProperties({ mass: 1 });
-      /////////////////////////////////
+      ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
       // https://doc.babylonjs.com/typedoc/classes/BABYLON.PhysicsShape
       var shape = new BABYLON.PhysicsShape(
@@ -828,7 +679,7 @@ export class levelFromFile {
       shape.material = physMaterial;
 
       if (meshData.movement && meshData.movement.enabled) {
-        console.warn("CREATING A ANIMATED MESH for mesh: ", mesh.name);
+        // console.warn("CREATING A ANIMATED MESH for mesh: ", mesh.name);
         // Create physics body as ANIMATED type
 
         const body = new BABYLON.PhysicsBody(
@@ -874,7 +725,9 @@ export class levelFromFile {
               charPosition.y <= meshPosition.y + meshBoundingBox.extendSize.y;
             // console.log("is on platform : ", isOnPlatform);
 
-            // Check if character is on platform
+            // CHECK IF CHARACTER IS ON  TO DO :
+            // IMPLEMENT THIS IN ORDER TO KEEP THE CHARACTER ON THE MOVING OBJECT (HORIZONTALLY WITH A RESITANCE BASED ON THE MASS OF THE PLAYER )
+
             // const isOnPlatform =
             //   Math.abs(characterBottom - platformTop) < 0.2 &&
             //   character.position.x >=
@@ -932,85 +785,83 @@ export class levelFromFile {
         );
         body.shape = shape;
       }
-
-      // physicsViewer.showBody(palmBody);
-
-      // const viewer = new BABYLON.Debug.PhysicsViewer();
-      // viewer.showBody(body);
-
-      //and/or
-      // mesh.computeWorldMatrix(true);
-      ////////////////////////////////////////////////////////////
-      // childMeshes.forEach((child) => {
-      //   const physicsAggregate = new PhysicsAggregate(
-      //     child,
-      //     PhysicsShapeType.MESH,
-      //     {
-      //       mass: mass,
-      //       friction: friction,
-      //       restitution: restitution,
-      //     },
-      //     this.scene
-      //   );
-      // });
-      /////////////////////////////////////////////////////////////
-
-      // const m0 = mesh[0];
-      // m0.refreshBoundingInfo(true);
-      // m0.computeWorldMatrix(true);
-      // const physicsAggregate = new PhysicsAggregate(
-      //   mesh,
-      //   PhysicsShapeType.MESH,
-      //   {
-      //     mass: mass,
-      //     friction: friction,
-      //     restitution: restitution,
-      //   },
-      //   this.scene
-      // );
-      // Create physics on the merged mesh
-      // const physicsAggregate = new PhysicsAggregate(
-      //   mergedMesh,
-      //   PhysicsShapeType.MESH,
-      //   {
-      //     mass: mass,
-      //     friction: friction,
-      //     restitution: restitution,
-      //   },
-      //   this.scene
-      // );
-
-      // Make sure we initialize metadata on the merged mesh
-      // if (!mergedMesh.metadata) {
-      //   mergedMesh.metadata = {};
-      // }
-
-      // // Copy metadata from the original mesh
-      // Object.assign(mergedMesh.metadata, mesh.metadata);
-
-      // // this.scene.registerBeforeRender(() => {
-      // //   mergedMesh.rotate(new Vector3(0, 1, 0), 0.1);
-      // // });
-
-      // mesh.dispose();
-      // m = mergedMesh;
     }
-
-    // // Make the original mesh hierarchy follow the physics mesh
-    // this.scene.onBeforeRenderObservable.add(() => {
-    //   mesh.position.copyFrom(mergedMesh.position);
-
-    //   if (mesh.rotationQuaternion && mergedMesh.rotationQuaternion) {
-    //     mesh.rotationQuaternion.copyFrom(mergedMesh.rotationQuaternion);
-    //   }
-    // });
 
     this.gameEnv.addShadowsToMesh(m);
 
     // console.log(
-    //   `Loaded physics data for mesh ${mesh.name}: mass=${mass}, friction=${friction}, restitution=${restitution}`
+    //   `loaded physics data for mesh ${mesh.name}: mass=${mass}, friction=${friction}, restitution=${restitution}`
     // );
 
     return m;
+  }
+
+  private _applyWinMesh(mesh: Mesh, meshData: SerializedMesh): void {
+    if (meshData?.isWinMesh === true) {
+      mesh.metadata.isWinMesh = true;
+      console.warn("Setting win mesh to : ", mesh.name);
+
+      // Create UI in top right corner showing the win object
+      this._createWinObjectUI(mesh, meshData);
+
+      // when player collides with the win mesh window alert the player
+      this.player.setWinCollisionMesh(mesh, () => {
+        window.alert("You win! Congratulations!");
+      });
+    }
+  }
+
+  private _createWinObjectUI(mesh: Mesh, meshData: SerializedMesh): void {
+    const ui = AdvancedDynamicTexture.CreateFullscreenUI(
+      "WinObjectUI",
+      true,
+      this.scene
+    );
+    const container = new StackPanel("winObjectContainer");
+    container.width = "200px";
+    container.color = "white";
+    container.background = "rgba(0, 0, 0, 0.5)";
+    container.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    container.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    container.top = "20px";
+    container.left = "-20px";
+    container.paddingTop = "10px";
+    container.paddingBottom = "10px";
+    ui.addControl(container);
+
+    const titleText = new TextBlock("winObjectTitle", "Win Object");
+    titleText.color = "white";
+    titleText.fontSize = 16;
+    titleText.height = "30px";
+    titleText.paddingBottom = "0px";
+    container.addControl(titleText);
+
+    let imgPath = this.assetManager.getAssetImageUrl(meshData.modelId || "");
+    if (!imgPath) {
+      console.warn(
+        `No image found for modelId ${meshData.modelId}. Using default placeholder.`
+      );
+      imgPath = ""; // empty string
+    }
+
+    const img = UIComponentsFactory.createImagePreview(
+      "winObjectImage",
+      imgPath
+    );
+    img.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    img.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    img.width = "80px";
+    img.height = "80px";
+    container.addControl(img);
+
+    const infoText = new TextBlock(
+      "winObjectInfo",
+      "Find the right one to win!"
+    );
+    infoText.color = "white";
+    infoText.fontSize = 14;
+    infoText.height = "30px";
+    infoText.paddingTop = "0px";
+    container.addControl(infoText);
   }
 }

@@ -44,7 +44,7 @@ export class selectedMeshUI {
   //////////////////// MESH MODIFICATION SIDE BAR //////////////////////////////
   // Create UI controls for the selected object
   createObjectControls(selectedMesh: Mesh) {
-    console.log("in createObjectControls : selectedMesh :  ", selectedMesh);
+    // console.log("in createObjectControls : selectedMesh :  ", selectedMesh);
     // Remove existing panel if there is one
     if (this.objectControlsPanel) {
       this.objectControlsPanel.dispose();
@@ -104,6 +104,7 @@ export class selectedMeshUI {
     this.addScalingControls(stackPanel, selectedMesh);
     this.addMovementControls(stackPanel, selectedMesh);
     this.addPhysicsControls(stackPanel, selectedMesh);
+    this.addWinConditionControls(stackPanel, selectedMesh);
 
     const spacer = UIComponentsFactory.createSpacing(10);
     stackPanel.addControl(spacer);
@@ -2371,5 +2372,99 @@ export class selectedMeshUI {
     };
 
     return row;
+  }
+
+  private addWinConditionControls(stackPanel: StackPanel, selectedMesh: Mesh) {
+    const spacer = UIComponentsFactory.createSpacing(10);
+    stackPanel.addControl(spacer);
+
+    // Create a container for win condition controls
+    const winConditionContainer = new StackPanel("winConditionContainer");
+    winConditionContainer.color = "orange";
+    winConditionContainer.background = "rgba(30, 30, 30, 0.5)";
+    winConditionContainer.paddingBottom = "10px";
+    stackPanel.addControl(winConditionContainer);
+
+    // Create stack panel for controls
+    const winStack = new StackPanel("winStack");
+    winStack.width = "100%";
+    winConditionContainer.addControl(winStack);
+
+    // Title for the section
+    const winTitle = new TextBlock("winTitle", "Win Condition");
+    winTitle.color = "white";
+    winTitle.fontSize = 14;
+    winTitle.height = "24px";
+    winTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    winTitle.paddingTop = "5px";
+    winStack.addControl(winTitle);
+
+    // Add a checkbox to enable/disable win condition
+    const winCheckRow = new StackPanel("winCheckRow");
+    winCheckRow.height = "30px";
+    winCheckRow.isVertical = false;
+    winCheckRow.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    winCheckRow.paddingLeft = "10px";
+    winCheckRow.paddingRight = "10px";
+    winStack.addControl(winCheckRow);
+
+    // Debug logging to help diagnose the issue
+    console.log("Selected mesh metadata:", selectedMesh?.metadata);
+    console.log("Is win condition?", selectedMesh?.metadata?.isWinCondition);
+    const winCheck = new Checkbox("winCheck");
+    winCheck.width = "20px";
+    winCheck.height = "20px";
+    winCheck.color = "orange";
+    winCheck.isChecked = selectedMesh?.metadata?.isWinMesh === true; // set initial state based on metadata
+    winCheckRow.addControl(winCheck);
+
+    const winLabel = new TextBlock("winLabel", "Set as win condition");
+    winLabel.color = "white";
+    winLabel.fontSize = 14;
+    winLabel.paddingLeft = "10px";
+    winLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    winLabel.width = "150px";
+    winLabel.height = "20px";
+    winCheckRow.addControl(winLabel);
+
+    // Win condition description
+    const winDescRow = new StackPanel("winDescRow");
+    winDescRow.height = "40px";
+    winDescRow.paddingLeft = "10px";
+    winDescRow.paddingRight = "10px";
+    winStack.addControl(winDescRow);
+
+    const winDescription = new TextBlock(
+      "winDescription",
+      "When player touches this object, the level is completed."
+    );
+    winDescription.color = "lightgray";
+    winDescription.fontSize = 12;
+    winDescription.textWrapping = true;
+    winDescription.height = "40px";
+    winDescription.width = "80%";
+    winDescription.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    winDescRow.addControl(winDescription);
+
+    // Toggle win condition when checkbox changes
+    winCheck.onIsCheckedChangedObservable.add((isChecked) => {
+      if (!selectedMesh) return;
+
+      // Initialize metadata if needed
+      if (!selectedMesh.metadata) {
+        selectedMesh.metadata = {};
+      }
+
+      // Update the metadata to match the checkbox state
+      selectedMesh.metadata.isWinCondition = isChecked;
+
+      if (isChecked) {
+        // Set this mesh as win condition
+        this.objectController.setWinMesh(selectedMesh);
+      } else {
+        // Remove this mesh as win condition
+        this.objectController.removeWinMesh();
+      }
+    });
   }
 }
