@@ -1,108 +1,71 @@
-# Fuzzleton
-
-## Author  
-**Tristan Patout**  
-Master’s student in IT/AI at **Université Côte d'Azur, France**.  
-
-This project is developed as part of the *"3D Game Programming"* course, taught by **Michel Buffa**, and is designed to compete in the [**Games On Web 2025**](https://www.cgi.com/france/fr-fr/event/games-on-web-2025)
- competition organized by **CGI** (on theme: *Dream Land*).
+# ✨ Fuzzleton — The Dreamy Teddy Bear Adventure! ✨
 
 
-## Overview
-Fuzzleton will be a physics-based 3D game developed in Babylon Js, featuring a teddy bear navigating a chaotically toy-filled kids' bedroom (every child's dream, right?). The game aims to blend platforming, puzzle-solving, and soft action fighting, drawing inspiration from titles like *Fall Guys*, *Human Fall Flat*, *Only Up* and *Gang Beasts*. Ideally, it will support multiplayer gameplay where players compete (in teams) to reach the top and become the ultimate "King of the Room".
+*Play it. Build it. Share it. Become the teddy hero you were born to be.* 🧸🔥
 
----
+## Created by
 
-## Features Implemented
-### 1. **Physics & Engine Integration**
-- Integration of **Havok** within a **Vite** environment.
-- Aggregates, collisions, Rays, etc. 
+**Tristan Patout**
+Master 1 student in IT/AI at **Université Côte d'Azur, France**
 
-### 2. **Camera System**
-- Developed a **third-person ArcRotateCamera** that is targeted on the player
-- Experimented with using an **ArcRotateCamera** for first-person gameplay as well. 
+Developed as part of the *"3D Game Programming"* course, taught by **Michel Buffa**, and is designed to compete in the [**Games On Web 2025**](https://www.cgi.com/france/fr-fr/event/games-on-web-2025)
+competition organized by **CGI** (on theme: *Dream Land*).
 
-### 3. **Environment Creation**
-#### **Lighting & Shadows**
-- Tested various lightings techniques:
-  - **HemisphericLight** for ambient lighting.
-  - **Two DirectionalLights** for shadow casting.
-  - **ShadowGenerator** to produce realistic shadows.
-  - **Fog** for depth 
+## Ready to Jump In?
 
-#### **Sky and Ground**
-- Added a **skybox** 
-- Ground creation:
-  - **Flat** or from **heightmap terrain**.
-  - Applied physics.
-
-### 4. **Character Implementation**
-- Developed a Teddy Bear character with:
-  - **Character controller** supporting movement, jumping, and rotation based on camera direction.
-  - **Animations from Mixamo** (idle, fall, etc.).
-  - Experimented with **Babylon.js Fur Material** to enhance character visuals.
-- Character controller inspired by [ergoudan](https://github.com/armomu/ergoudan).
-
-### 5. **Asset Importation & Material Experiments**
-- Tested various **3D assets**, Babylon.js **materials**, and **textures** to explore Babylon Js possibilities. 
-
-### 6. **Level Design Elements**
-- Created foundational **GameObject** classes, including:
-  - **Walls**
-  - **Platforms** (static & moving)
-  - **Slopes**
-  - **Stairs**
-
-- Simple random objects generation
-- Creation of a LevelGenerator (that, for the moment, randomly generates objects in a procedural way + predifined ones)
+Play **Fuzzleton** live right now on my VPS:
+➡️ [https://fuzzleton.tristan-patout.fr](https://fuzzleton.tristan-patout.fr)
 
 ---
 
-## Vision: What Fuzzleton Aims to Be
-### **Core Concept**
-I envision the game as a **battle** where players control teddy bears navigating through an oversized, chaotic **kid's room** full of toys. The goal is to overcome obstacles, solve puzzles, fight and **reach the top before others** competitors to become the *"King of the Room"* aka the teddy bear of everyone's dreams.
+## 💫 Watch It In Action!
 
-### **Planned Gameplay Features**
-- **Multiplayer Mode**: Players can compete solo or in teams to reach the top.
-- **Dynamic Environment**: A physics-based world with moving objects, destructible elements, and unpredictable challenges/fights.
-- **Varied Gameplay**: Blending **platforming, puzzles, and action mechanics** to create engaging, skill-based? levels.
-- **Customization**: Players could customize their Teddy Bear with different skins and accessories (through in-game rewards ?).
-
-### **Inspirations**
-The game will draw inspiration from various games, aiming to combine elements from each to create a unique and engaging experience:
-- [*Fall Guys*](https://www.fallguys.com/)
-- [*Human Fall Flat*](https://store.steampowered.com/app/477160/Human_Fall_Flat/)
-- [*Gang Beasts*](https://gangbeasts.game/)
-- [*Bed Wars*](https://www.minecraft.net/fr-ca/marketplace/pdp?id=e5e0b70b-849c-4f99-a5fb-c220f788dd3e)
-- [*Only Up*](https://store.steampowered.com/app/2842590/Only_Up/)
-- [*Kirby*](https://kirby.nintendo.com/)
+Curious how Fuzzleton looks? Check out this gameplay/demo video to see the teddy bear chaos and level editor magic come alive:
+🎬 [Watch the Fuzzleton Gameplay Video](https://youtube)
 
 ---
 
-## Short-term Next Steps
-- **Refining movement**: Improve character controller (various bugs sucha as when jumping) and implement more movement mechanics (grabbing,  climbing, throowing itself).
+## What’s Fuzzleton All About?
 
-- **Level design**: Creating first basic levels (at first only goal is to make a kind of platformer where the player needs to reach the top). Probably creating a Level Editor to simplify the creation process later on.
+Imagine a wild, oversized kid’s bedroom — objects everywhere, chaos reigning supreme, and YOU control a fluffy teddy bear trying to navigate through this playful madness (every child's dream, right?).
 
-- **Multiplayer prototype**: Explore ways to implement multiplayer.
+Fuzzleton is a **physics-powered 3D platformer** developed in Babylon.js powered by the Havok physics engine. After setting up the physic based game environment and homemade physics character controller for our cuddly hero to take life, but also setting up lights, shadows and a lot more. Your mission? Jump, bounce, find the desired object, and conquer the wildest toy-land obstacles... all while dreaming up your own crazy levels!
 
-- **Optimization**: 
-    - Implement AssetManager + Lazy loading 
-    - Optimize havok physics
-    - Resolve camera collision bugs and performances issues (in order to not see through objs, ground, walls, etc.)
-    - Resolve shadow issues (when there is a lot of objs and/or when activating physics) 
-
-- **AND A LOT MORE...** 
+**But wait... here’s the twist:**
+Not only can you play the game, but you have to **build your own physics-based levels** — quickly and easily through our **level creator**— and share them with friends (or rivals !) to challenge their teddy bear skills.
 
 ---
 
-## Inspirations & Resources
-- [Babylon.js Documentation & Tutotrials](https://doc.babylonjs.com/)
-- [Babylon.js Forum](https://forum.babylonjs.com/)
-- [SummerFestival Babylon Tutorial](https://github.com/BabylonJS/SummerFestival/tree/master)
-- [ergoudan by armomu (strongly inspired/implemented from this project)](https://github.com/armomu/ergoudan)
-- [Michel Buffa's 3D Game Programming Course](https://docs.google.com/document/d/1hz8XFVFsj3zmcZkPJtI93EMHgW-ZSAMDa_wtJnu9yN0/edit?tab=t.0#heading=h.c2d36nnahppc)
+## The Vision — Why Fuzzleton?
+After setting up the basis of the project came fatidic questions: *What do I want to create?*, *How could I make levels integrating physics in a fun and easy way?*: Sure, Blender is fantastic for modeling but long, and exporting files, reconfiguring everything in the game quickly becomes a headache. I have tried Godot too, it is a solid engine too, but the same problems arose for integrating to my Babylon.js project.
 
+So, what was the answer? You guessed it: build my very own level editor, fully integrated into the Babylon game itself! Allowing me to create levels rapidly from various objects models assets kits.
+What was at start a simple idea for my to create levels fadter turned into the core concept of my project: The long-run dream is to create a Fuzzelton **community playground** where imagination knows no bounds.
+* Navigate your teddy through chaotic kid’s rooms filled with oversized toys
+* Overcome obstacles, bounce and find the hidden object
+* Race other players to become the **King of the Room** — the teddy bear everyone dreams of!
+* And **create your own levels** with a physics-driven level editor that puts the power of design in your hands!
 
-## SUBMISSION
-[Readme Submission](./README_SUBMISSION.MD)
+🎫 Think of Fuzzleton as your ticket to a *dream land* where everyones adventure is unique - because *you* build it!
+
+---
+
+## Ressources & Inspirations
+
+* Michel Buffa’s 3D Game Programming course wich was the foundation of this journey
+* [Babylon.js](https://doc.babylonjs.com/) 
+* [Babylon.js Forum](https://forum.babylonjs.com/) a lot of help from the community ! 
+* [ergoudan by armomu](https://github.com/armomu/ergoudan) — inspiration for the character controller
+
+---
+
+## Thank you
+I want to express my gratitude to CGI France, Michel Buffa, David Catuhe, Sébastien Vandenbergue, and Université Côte d'Azur for making this dream possible through the Games on Web 2025 competition. Offering the opportunity to learn more about 3D technologies and web development with Babylon.js, while stimulating our skills and creativity dreams ! 
+
+---
+
+## What’s Next?
+
+The game is still early, level creator is awaiting for new implementations but you can already try and create levels. Ready to test, play, and build your own dreamland? Dive in and let the toy chaos begin!
+
+---
