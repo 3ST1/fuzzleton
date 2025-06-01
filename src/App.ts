@@ -208,17 +208,8 @@ class App {
     this.createButton(environment, char, level);
     await level.initLevel();
 
-    this.canvas.style.opacity = "1";
-
-    scene.onBeforeRenderObservable.add(() => {
-      environment.updateFps(this.engine.getFps());
-      if (this.scene) {
-        char.updatePlayer(this.scene.deltaTime);
-      }
-    });
-    scene.onBeforeAnimationsObservable.add(() => {
-      char.onBeforeAnimations();
-    });
+    // this.canvas.style.opacity = "1";
+    environment.setupBeforeRender(scene, this.engine, char);
 
     // this.assetManagerService.changeScene(scene);
     return scene;

@@ -30,6 +30,7 @@ import {
 import { AdvancedDynamicTexture, Control, TextBlock } from "@babylonjs/gui";
 import { addPhysicsAggregate } from "./utils";
 import { c } from "vite/dist/node/moduleRunnerTransport.d-CXw_Ws6P";
+import PlayerController from "./player/thirdPersonController";
 
 // create a type for the objects to add physics
 export type MyEnvObjsToAddPhysics = {
@@ -44,12 +45,12 @@ export class GameEnvironment {
   private scene: Scene;
   private canvas: HTMLCanvasElement;
   camera!: ArcRotateCamera;
-  light!: DirectionalLight;
-  shadowGenerator!: ShadowGenerator;
+  private light!: DirectionalLight;
+  private shadowGenerator!: ShadowGenerator;
   ground: any;
   skybox!: Mesh;
-  hemiLight!: HemisphericLight;
-  mainDirLight!: DirectionalLight;
+  private hemiLight!: HemisphericLight;
+  private mainDirLight!: DirectionalLight;
 
   constructor(scene: Scene, canvas: HTMLCanvasElement) {
     this.scene = scene;
@@ -76,39 +77,73 @@ export class GameEnvironment {
       this.camera.lowerRadiusLimit = 10;
       this.camera.upperRadiusLimit = 55;
 
-      // limit camera to certain angles to avoid seeing through the ground
-      // this.camera.lowerBetaLimit = 0.1;
-      // this.camera.upperBetaLimit = Math.PI / 2 - 0.1;
-      // no zooming
-      // this.camera.wheelPrecision = 0;
-      // this.camera.attachControl(canvas, false);
-
-      this.camera.checkCollisions = true; // FIND A WAY TO NOT LAG when a lot of objects are in the scene
+      // this.camera.checkCollisions = true; // FIND A WAY TO NOT LAG when a lot of objects are in the scene
       // ->  PROBABLY DO A RAYCASTING TO CHECK IF THE CAMERA IS COLLIDING WITH THE GROUND
-      // @ts-ignore
-      this.camera.onCollide = (collidedMesh) => {
-        // console.log(`Camera collided with: ${collidedMesh.name}`);
-        this.camera.position.y += 2; // to avoid going trough the ground for example and little tilt on collision
-      };
-
       this.scene.registerBeforeRender(() => {
-        // check if the y position of the camera is below the ground and if it is put it back above
-        if (this.ground && this.camera) {
-          const groundHeight = this.ground.getHeightAtCoordinates(
-            this.camera.position.x,
-            this.camera.position.z
+        if (!this.ground || !this.camera) {
+          return;
+        }
+
+        const cameraPosition = this.camera.position;
+        const groundHeight = this.ground.getHeightAtCoordinates(
+          cameraPosition.x,
+          cameraPosition.z
+        );
+
+        if (groundHeight === null) {
+          return;
+        }
+
+        if (cameraPosition.y < groundHeight + 1) {
+          // Camera is too low ( going through the ground).
+          // We need to adjust camera beta (angle) and/or radius (distance)
+          // ensure camera stay in safe position above ground
+          this.camera.target.y = groundHeight + 1; // keeps camera target above ground
+
+          //tilt camera upwards (decrease beta)
+          // Target beta is current beta minus a step clamped by lowerBetaLimit
+          const targetBeta = Math.max(
+            this.camera.lowerBetaLimit ?? 0.01, // Use camera's limit or a safe default
+            this.camera.beta - 0.1
+          );
+          this.camera.beta = Scalar.Lerp(this.camera.beta, targetBeta, 0.2);
+
+          // try to zoom camera out (increase radius)
+          // Target radius is current radius plus a step clamped by upperRadiusLimit
+          const targetRadius = Math.min(
+            this.camera.upperRadiusLimit ?? 55,
+            this.camera.radius - 3
+          );
+          this.camera.radius = Scalar.Lerp(
+            this.camera.radius,
+            targetRadius,
+            0.2
           );
 
-          // console.log(
-          //   `camera y: ${this.camera.position.y}, ground height: ${groundHeight}`
-          // );
-          if (this.camera.position.y < groundHeight + 1) {
-            // Place the camera above the ground
-            this.camera.position.y = groundHeight + 1;
-            // console.log("camera position corrected to above ground");
+          // console.log(`Camera ground proximity: Corrected beta to ${this.camera.beta.toFixed(2)}, radius to ${this.camera.radius.toFixed(2)}`);
+        } else {
+          if (Math.abs(this.camera.radius - 12) > 0.1) {
+            // Tolerance to prevent constant lerping
+            this.camera.radius = Scalar.Lerp(this.camera.radius, 12, 0.03);
+          }
+          const clampedDefaultBeta = Math.max(
+            this.camera.lowerBetaLimit ?? 0.01,
+            Math.min(
+              this.camera.upperBetaLimit ?? Math.PI / 2 - 0.01,
+              Math.PI / 3
+            )
+          );
+          if (Math.abs(this.camera.beta - clampedDefaultBeta) > 0.01) {
+            // Tolerance
+            this.camera.beta = Scalar.Lerp(
+              this.camera.beta,
+              clampedDefaultBeta,
+              0.03
+            );
           }
         }
       });
+
       console.log("created third person camera");
     } else {
       // First person camera but still using ArcRotateCamera
@@ -483,6 +518,42 @@ export class GameEnvironment {
 
   public updateTipsText(text: string) {
     this.infosText.text = text;
+  }
+
+  public setupBeforeRender(
+    scene: Scene,
+    engine: Engine,
+    char: PlayerController
+  ): void {
+    scene.onBeforeRenderObservable.add(() => {
+      this.updateFps(engine.getFps());
+      if (this.scene) {
+        char.updatePlayer(this.scene.deltaTime);
+      }
+
+      // TEST MAX DISTANCE DISABLE
+      const maxDistance = 100;
+
+      const playerPos = char.player.position;
+
+      scene.meshes.forEach((mesh) => {
+        if (!mesh || !mesh.physicsBody) return;
+
+        const dist = Vector3.Distance(mesh.position, playerPos);
+
+        if (dist > maxDistance) {
+          // Far away: disable rendering and physics
+          mesh.setEnabled(false);
+        } else {
+          // Nearby enable mesh if not already
+          if (!mesh.isEnabled()) mesh.setEnabled(true);
+        }
+      });
+    });
+
+    scene.onBeforeAnimationsObservable.add(() => {
+      char.onBeforeAnimations();
+    });
   }
 
   public setupGameEnvironment(thirdPers: boolean = true): void {
