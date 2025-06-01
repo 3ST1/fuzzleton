@@ -811,6 +811,7 @@ export class levelFromFile {
     }
   }
 
+  // @ts-ignore
   private _createWinObjectUI(mesh: Mesh, meshData: SerializedMesh): void {
     const ui = AdvancedDynamicTexture.CreateFullscreenUI(
       "WinObjectUI",
