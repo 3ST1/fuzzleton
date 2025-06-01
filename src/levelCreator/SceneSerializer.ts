@@ -2,7 +2,7 @@ import { Mesh, Vector3, Quaternion, AssetsManager } from "@babylonjs/core";
 import { AssetManagerService } from "../AssetManagerService";
 
 // Interface to represent serialized data for a mesh
-interface SerializedMesh {
+export interface SerializedMesh {
   id: string;
   type: string;
   modelId?: string;
@@ -24,6 +24,7 @@ interface SerializedMesh {
     y: number;
     z: number;
   };
+  isWinMesh?: boolean; // to indicate if this mesh is a win mesh
   // Additional properties for material identification
   material?: {
     name?: string;
@@ -168,6 +169,7 @@ export class SceneSerializer {
         y: mesh.scaling.y,
         z: mesh.scaling.z,
       },
+      isWinMesh: mesh.metadata?.isWinMesh || false,
     };
 
     // Add material information if available
@@ -340,112 +342,5 @@ export class SceneSerializer {
       console.error("Failed to parse scene JSON:", error);
       return null;
     }
-  }
-
-  static serializeMesh(mesh: Mesh): any {
-    const meshData: any = {
-      id: mesh.id,
-      name: mesh.name,
-      position: {
-        x: mesh.position.x,
-        y: mesh.position.y,
-        z: mesh.position.z,
-      },
-      scaling: {
-        x: mesh.scaling.x,
-        y: mesh.scaling.y,
-        z: mesh.scaling.z,
-      },
-    };
-
-    // Add rotation if present
-    if (mesh.rotationQuaternion) {
-      meshData.rotation = {
-        x: mesh.rotationQuaternion.x,
-        y: mesh.rotationQuaternion.y,
-        z: mesh.rotationQuaternion.z,
-        w: mesh.rotationQuaternion.w,
-      };
-    }
-
-    // Add metadata
-    if (mesh.metadata) {
-      const metadata: any = {};
-
-      // Include type info
-      if (mesh.metadata.type) {
-        metadata.type = mesh.metadata.type;
-      }
-
-      if (mesh.metadata.modelId) {
-        metadata.modelId = mesh.metadata.modelId;
-      }
-
-      // Include root folder and file name for models
-      if (mesh.metadata.rootFolder) {
-        metadata.rootFolder = mesh.metadata.rootFolder;
-      }
-
-      if (mesh.metadata.fileName) {
-        metadata.fileName = mesh.metadata.fileName;
-      }
-
-      // Include movement data with all control points
-      if (mesh.metadata.moving) {
-        metadata.moving = true;
-
-        if (mesh.metadata.endPos) {
-          metadata.endPos = {
-            x: mesh.metadata.endPos.x,
-            y: mesh.metadata.endPos.y,
-            z: mesh.metadata.endPos.z,
-          };
-        }
-
-        if (mesh.metadata.speed !== undefined) {
-          metadata.speed = mesh.metadata.speed;
-        }
-
-        // Include all control points for Bezier paths
-        if (mesh.metadata.controlPoints) {
-          metadata.controlPoints = mesh.metadata.controlPoints.map((point) => ({
-            x: point.x,
-            y: point.y,
-            z: point.z,
-          }));
-        }
-      }
-
-      // Include rotation animation data
-      if (mesh.metadata.rotating) {
-        metadata.rotating = true;
-
-        if (mesh.metadata.rotationAxis) {
-          metadata.rotationAxis = {
-            x: mesh.metadata.rotationAxis.x,
-            y: mesh.metadata.rotationAxis.y,
-            z: mesh.metadata.rotationAxis.z,
-          };
-        }
-
-        if (mesh.metadata.rotationSpeed !== undefined) {
-          metadata.rotationSpeed = mesh.metadata.rotationSpeed;
-        }
-      }
-
-      // Include physics data
-      if (mesh.metadata.physics && mesh.metadata.physics.enabled) {
-        metadata.physics = {
-          enabled: true,
-          mass: mesh.metadata.physics.mass || 0,
-          friction: mesh.metadata.physics.friction || 0.2,
-          restitution: mesh.metadata.physics.restitution || 0.2,
-        };
-      }
-
-      meshData.metadata = metadata;
-    }
-
-    return meshData;
   }
 }

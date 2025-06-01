@@ -31,6 +31,7 @@ export interface MeshItem {
   label: string;
   color: string;
   imageUrl?: string;
+  // assetPath?: string; // TO IMPLEMENT
 }
 
 // Represents the node Trie structure for models sidebar
@@ -447,62 +448,50 @@ export class LevelCreatorUI {
         console.warn(`Model ID not found for file: ${filename}`);
         continue; // Skip if modelId is not found in loaded models
       } else {
-        const formattedFullName = this.formatModelName(modelId);
-        const nameParts = formattedFullName
-          .split(" ")
-          .filter((p) => p.length > 0);
+        try {
+          const formattedFullName = this.formatModelName(modelId);
+          const nameParts = formattedFullName
+            .split(" ")
+            .filter((p) => p.length > 0);
 
-        let color = "gray";
-        // if (modelId.toLowerCase().includes("blue")) color = "blue";
-        // else if (modelId.toLowerCase().includes("red")) color = "red";
-        // else if (modelId.toLowerCase().includes("yellow")) color = "yellow";
-        // else if (modelId.toLowerCase().includes("green")) color = "green";
-        // else if (modelId.toLowerCase().includes("purple")) color = "purple";
-        // else if (modelId.toLowerCase().includes("orange")) color = "orange";
+          let color = "gray";
+          // if (modelId.toLowerCase().includes("blue")) color = "blue";
+          // else if (modelId.toLowerCase().includes("red")) color = "red";
+          // else if (modelId.toLowerCase().includes("yellow")) color = "yellow";
+          // else if (modelId.toLowerCase().includes("green")) color = "green";
+          // else if (modelId.toLowerCase().includes("purple")) color = "purple";
+          // else if (modelId.toLowerCase().includes("orange")) color = "orange";
 
-        const baseFilename = filename
-          .substring(filename.lastIndexOf("/") + 1)
-          .split(".")[0];
-        const pathObj = this.assetManager.getAssetPathFromId(modelId);
-        let imagePath: string | undefined = undefined;
-        if (pathObj) {
-          const splitfilename = pathObj.filename.split("/");
-          const filename = splitfilename.pop() || "";
-          const path = splitfilename.join("/");
-          imagePath =
-            pathObj.rootPath +
-            path +
-            "/previews/" +
-            filename.replace(/\.[^/.]+$/, ".png");
-        }
+          const meshItem: MeshItem = {
+            id: `model-${modelId}`, // Unique UI ID
+            modelId,
+            type: "model",
+            label: formattedFullName, // Store full formatted name
+            color,
+            imageUrl: this.assetManager.getAssetImageUrl(modelId) || "", // Get image URL from asset manager
+          };
 
-        const previewImageUrl = imagePath;
-        console.log(
-          `DEBUG - Model ${modelId} preview image URL: ${previewImageUrl}`
-        );
-        // const previewImageUrl = `/kaykit/previews/ImageToStl.com_${baseFilename}.gltf.png`;
-
-        const meshItem: MeshItem = {
-          id: `model-${modelId}`, // Unique UI ID
-          modelId,
-          type: "model",
-          label: formattedFullName, // Store full formatted name
-          color,
-          imageUrl: previewImageUrl,
-        };
-
-        let currentNode = modelTrieRoot;
-        for (let i = 0; i < nameParts.length; i++) {
-          const part = nameParts[i];
-          if (!currentNode.children.has(part)) {
-            currentNode.children.set(part, { children: new Map(), models: [] });
+          let currentNode = modelTrieRoot;
+          for (let i = 0; i < nameParts.length; i++) {
+            const part = nameParts[i];
+            if (!currentNode.children.has(part)) {
+              currentNode.children.set(part, {
+                children: new Map(),
+                models: [],
+              });
+            }
+            currentNode = currentNode.children.get(part)!;
+            if (i === nameParts.length - 1) {
+              // Last part of the name
+              currentNode.models.push({ meshItem, nameParts });
+            }
           }
-          currentNode = currentNode.children.get(part)!;
-          if (i === nameParts.length - 1) {
-            // Last part of the name
-            currentNode.models.push({ meshItem, nameParts });
-          }
+        } catch (error) {
+          console.error(
+            `Sidebard creation error processing model file ${filename}: ${error}`
+          );
         }
+        continue;
       }
     }
 

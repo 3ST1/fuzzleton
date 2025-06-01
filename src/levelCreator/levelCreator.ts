@@ -23,7 +23,7 @@ import { MeshUtils } from "./MeshUtils";
 import { ObjectController } from "./ObjectController";
 import { ModelManager } from "./ModelManager";
 import { SceneSerializer } from "./SceneSerializer";
-import { modelFiles } from "./assetsLinks";
+import { BASE_URL, modelFiles } from "./assetsLinks";
 import App, { GameState } from "../App";
 // import { SceneSerializer } from "../levelCreator/SceneSerializer";
 class LevelCreator {
@@ -39,6 +39,7 @@ class LevelCreator {
   private ground!: Mesh;
   private materials: { [key: string]: StandardMaterial } = {};
   private placedMeshes: Mesh[] = [];
+  private winMesh: Mesh | null = null; // Mesh to indicate level completion when user touches it
   private highlightLayer: HighlightLayer | null = null;
   private gridMesh: LinesMesh | null = null;
 
@@ -236,36 +237,34 @@ class LevelCreator {
       scene
     );
     camera.setPosition(new Vector3(20, 200, 100));
+
+    // prevent camera from going below ground
+    camera.lowerBetaLimit = 0.1;
+
+    // min radius to prevent getting too close to ground
+    camera.minZ = 0.1;
+    camera.lowerRadiusLimit = 5;
+
+    // restricting vertical movement to noot go under ground
+    camera.upperBetaLimit = Math.PI / 2 - 0.1;
+
+    // ensure camera does not go and see below ground
+    scene.onBeforeRenderObservable.add(() => {
+      const groundHeight = 0;
+      const minHeightAboveGround = 3;
+      if (camera.position.y < groundHeight + minHeightAboveGround) {
+        camera.position.y = groundHeight + minHeightAboveGround;
+      }
+      if (camera.target.y < groundHeight) {
+        camera.target.y = groundHeight;
+      }
+    });
+
     camera.attachControl(this.canvas, true);
     return camera;
   }
 
   /// MESH MANAGEMENT
-
-  // public selectMesh(mesh: Mesh): void {
-  //   console.log("Selecting mesh:", mesh.name);
-
-  //   // Make sure any previous highlight is cleared first
-  //   this.objectController.deselectMesh();
-
-  //   // Apply highlight directly in addition to using the controller
-  //   if (this.highlightLayer) {
-  //     console.log("Applying highlight to selected mesh");
-  //     this.highlightLayer.addMesh(mesh, Color3.Yellow());
-
-  //     // Also highlight all child meshes
-  //     mesh.getChildMeshes().forEach((childMesh) => {
-  //       console.log("Highlighting child mesh:", childMesh.name);
-  //       this.highlightLayer?.addMesh(childMesh as Mesh, Color3.Yellow());
-  //     });
-  //   }
-
-  //   // Display mesh info in UI or console
-  //   this.displayMeshInfo(mesh);
-
-  //   // Then use the object controller to handle selection
-  //   this.objectController.selectMesh(mesh, this.ground, this.gridMesh || null);
-  // }
 
   public handleGroundClick(): void {
     console.log("Clicking on ground/grid - removing all highlights");
@@ -273,42 +272,20 @@ class LevelCreator {
     // Get currently selected mesh and remove its highlights directly
     const selectedMesh = this.objectController.getSelectedMesh();
     if (selectedMesh && this.highlightLayer) {
-      console.log(
-        "Removing highlight from previously selected mesh:",
-        selectedMesh.name
-      );
+      // console.log(
+      //   "Removing highlight from previously selected mesh:",
+      //   selectedMesh.name
+      // );
       this.highlightLayer.removeMesh(selectedMesh as Mesh);
 
       // Also remove highlights from all child meshes
       selectedMesh.getChildMeshes().forEach((childMesh) => {
-        console.log("Removing highlight from child mesh:", childMesh.name);
+        // console.log("Removing highlight from child mesh:", childMesh.name);
         this.highlightLayer?.removeMesh(childMesh as Mesh);
       });
     }
 
     this.objectController.deselectMesh();
-  }
-
-  public applyHighlightToMesh(mesh: Mesh): void {
-    if (!this.highlightLayer) return;
-
-    console.log("Applying highlight to newly placed mesh");
-    this.highlightLayer.addMesh(mesh, Color3.Yellow());
-
-    // Also highlight all child meshes
-    mesh.getChildMeshes().forEach((childMesh) => {
-      console.log("Highlighting child mesh:", childMesh.name);
-      this.highlightLayer?.addMesh(childMesh as Mesh, Color3.Yellow());
-    });
-  }
-
-  public removeHighlightFromMesh(mesh: Mesh): void {
-    if (!this.highlightLayer || !mesh) return;
-
-    this.highlightLayer.removeMesh(mesh);
-    mesh.getChildMeshes().forEach((childMesh) => {
-      this.highlightLayer?.removeMesh(childMesh as Mesh);
-    });
   }
 
   private handleMeshDeletion(mesh: Mesh): void {
@@ -352,10 +329,8 @@ class LevelCreator {
   }
 
   private async _loadAssets(): Promise<void> {
-    const baseUrl = "/api/assets/"; // will be proxied in vite.config.js
-
     // Load model assets through the proxy in development or direct in production
-    this.assetManager.addModelsToAssetManager(baseUrl, this.modelFiles);
+    this.assetManager.addModelsToAssetManager(BASE_URL, this.modelFiles);
 
     // Setup callback for when assets are loaded
     // this.assetManager.loadAssets(() => {
@@ -443,7 +418,7 @@ class LevelCreator {
 
     // Explicitly remove highlights if a mesh is currently selected
     if (selectedMesh) {
-      this.removeHighlightFromMesh(selectedMesh as Mesh);
+      this.objectController.removeHighlightFromMesh(selectedMesh as Mesh);
     }
 
     this.objectController.deselectMesh();
@@ -460,7 +435,7 @@ class LevelCreator {
       this.previewMesh = this.modelManager?.createModelPreview(modelId);
       if (this.previewMesh) {
         // Add highlight to the preview mesh
-        this.applyHighlightToMesh(this.previewMesh as Mesh);
+        this.objectController.applyHighlightToMesh(this.previewMesh as Mesh);
       } else {
         console.error(`Failed to create preview mesh for ${modelId}`);
       }
@@ -528,7 +503,7 @@ class LevelCreator {
       this.canvas.style.cursor = "crosshair";
 
       // Always reattach camera control on pointer up
-      console.log("Pointer up detected - reattaching camera control");
+      // console.log("Pointer up detected - reattaching camera control");
       this.lvlCreatorCamera.attachControl(this.canvas, true);
 
       if (this.previewMesh && this.isDragging) {
@@ -574,7 +549,7 @@ class LevelCreator {
           }
           break;
         case PointerEventTypes.POINTERUP:
-          console.log("Pointer up detected");
+          // console.log("Pointer up detected");
           // Always reattach camera control
           this.lvlCreatorCamera.attachControl(this.canvas, true);
 
@@ -677,7 +652,7 @@ class LevelCreator {
       return;
     }
 
-    console.log(`Updating preview position to:`, groundPos);
+    // console.log(`Updating preview position to:`, groundPos);
 
     if (this.snapToGrid) {
       const snappedX = Math.round(groundPos.x / this.gridSize) * this.gridSize;
@@ -689,7 +664,7 @@ class LevelCreator {
   }
 
   private placeMeshAtPreviewPosition(): void {
-    console.log("Attempting to place mesh at:", this.previewMesh?.position);
+    // console.log("Attempting to place mesh at:", this.previewMesh?.position);
 
     try {
       if (!this.previewMesh || !this.previewMesh.position) {
@@ -714,7 +689,7 @@ class LevelCreator {
       }
 
       // Apply highlight and select the new mesh
-      this.applyHighlightToMesh(newMesh);
+      this.objectController.applyHighlightToMesh(newMesh);
       this.objectController.selectMesh(
         newMesh,
         this.ground,
@@ -784,7 +759,7 @@ class LevelCreator {
   private cleanupPreview(): void {
     // Clear any highlights from the preview mesh before disposing
     if (this.previewMesh) {
-      this.removeHighlightFromMesh(this.previewMesh);
+      this.objectController.removeHighlightFromMesh(this.previewMesh);
     }
 
     // Dispose of the preview mesh
@@ -941,7 +916,7 @@ class LevelCreator {
 
     // Remove highlights if a mesh is selected
     if (selectedMesh) {
-      this.removeHighlightFromMesh(selectedMesh as Mesh);
+      this.objectController.removeHighlightFromMesh(selectedMesh as Mesh);
     }
 
     // Deselect current mesh
@@ -956,11 +931,8 @@ class LevelCreator {
     this.placedMeshes = [];
   }
 
-  private async loadSceneMeshes(sceneData: any): Promise<void> {
-    console.log("Starting to load meshes from scene data... : ", sceneData);
-
-    // Use the data directly without re-parsing
-    let parsedData = sceneData;
+  private async loadSceneMeshes(parsedData: any): Promise<void> {
+    console.log("Starting to load meshes from scene data... : ", parsedData);
 
     // Make sure we have valid data
     if (

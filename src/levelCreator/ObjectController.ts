@@ -84,6 +84,9 @@ export class ObjectController {
 
   assetManager: AssetManagerService;
 
+  // Mesh that indicate level completion when user touches it
+  private winMesh: Mesh | AbstractMesh | TransformNode | null = null;
+
   constructor(
     scene: Scene,
     levelCreatorUI: LevelCreatorUI,
@@ -142,23 +145,21 @@ export class ObjectController {
     }
 
     // Deselect existing mesh if necessary
-    if (this.selectedMesh && this.selectedMesh !== mesh) {
-      this.deselectMesh();
-    }
+    // if (this.selectedMesh && this.selectedMesh !== mesh) {
+    this.deselectMesh();
+    // }
 
     // Set as selected mesh
     this.selectedMesh = mesh;
 
-    // Add highlight to the selected mesh or its children
+    // Add highlight to the selected mesh or its children TO DO : DIRECTLY USE THE METHOD OF LEVELCREATOR.TS
     if (mesh) {
       // Apply highlight directly in addition to using the controller
       if (this.highlightLayer) {
-        console.log("Applying highlight to selected mesh");
         this.highlightLayer.addMesh(mesh as Mesh, Color3.Yellow());
 
         // Also highlight all child meshes
         mesh.getChildMeshes().forEach((childMesh) => {
-          console.log("Highlighting child mesh:", childMesh.name);
           this.highlightLayer?.addMesh(childMesh as Mesh, Color3.Yellow());
         });
       }
@@ -186,8 +187,11 @@ export class ObjectController {
     }
   }
 
-  deselectMesh() {
+  deselectMesh(resetAllHighlights = true) {
     this.selectedMeshUI.clearAllActionTimers();
+    if (resetAllHighlights) {
+      this.highlightLayer.removeAllMeshes();
+    }
     if (this.selectedMesh) {
       if (this.selectedMesh instanceof AbstractMesh) {
         this.highlightLayer.removeMesh(this.selectedMesh as Mesh);
@@ -198,11 +202,10 @@ export class ObjectController {
         });
       }
 
-      console.log(`Deselected object: ${this.selectedMesh.name}`);
+      // console.log(`deselected object: ${this.selectedMesh.name}`);
 
-      // Don't remove path visualization when deselecting
-      // We want them to remain visible
-      // Just detach any gizmo from control points
+      // we don't remove the path visualization when deselecting
+      // We want them to remain visible but we just detach gizmo from control points
       if (this.selectedControlPoint) {
         this.gizmoManager?.attachToMesh(null);
         this.selectedControlPoint = null;
@@ -211,6 +214,43 @@ export class ObjectController {
       this.selectedMesh = null;
       this.selectedMeshUI.hideObjectControls();
     }
+  }
+
+  public applyHighlightToMesh(
+    mesh: Mesh,
+    removePrevious: boolean = true
+  ): void {
+    if (!this.highlightLayer) return;
+
+    try {
+      // console.log("applying highlight to mesh");
+      this.highlightLayer.addMesh(mesh, Color3.Yellow());
+
+      // Also highlight all child meshes
+      mesh.getChildMeshes().forEach((childMesh) => {
+        // console.log("highlighting child mesh:", childMesh.name);
+        this.highlightLayer?.addMesh(childMesh as Mesh, Color3.Yellow());
+      });
+    } catch (error) {
+      console.error("Error applying highlight to mesh:", error);
+    } finally {
+      // if removePrevious is true remove highlight from previously selected mesh
+      if (removePrevious) {
+        const selectedMesh = this.getSelectedMesh();
+        if (selectedMesh && selectedMesh !== mesh) {
+          this.removeHighlightFromMesh(selectedMesh as Mesh);
+        }
+      }
+    }
+  }
+
+  public removeHighlightFromMesh(mesh: Mesh): void {
+    if (!this.highlightLayer || !mesh) return;
+
+    this.highlightLayer.removeMesh(mesh);
+    mesh.getChildMeshes().forEach((childMesh) => {
+      this.highlightLayer?.removeMesh(childMesh as Mesh);
+    });
   }
 
   getSelectedMesh(): Mesh | AbstractMesh | TransformNode | null {
@@ -227,6 +267,11 @@ export class ObjectController {
 
     // Clean up all movement paths, previews, animations and control points
     this.cleanupMeshVisualization(meshId);
+
+    // if is win mesh, remove it
+    if (this.winMesh && this.winMesh.uniqueId === mesh.uniqueId) {
+      this.removeWinMesh();
+    }
 
     // Check if this is a root node of a model
     const isModelRoot =
@@ -1462,6 +1507,11 @@ export class ObjectController {
     // Apply physics properties if available
     this.applyPhysicsData(mesh, meshData);
 
+    // Apply if is a win mesh
+    if (meshData.isWinMesh) {
+      this.setWinMesh(mesh);
+    }
+
     // Apply additional metadata from the saved data
     if (meshData.metadata) {
       // Preserve existing metadata and add any missing properties
@@ -1594,5 +1644,33 @@ export class ObjectController {
     }
 
     console.log("ObjectController disposed");
+  }
+
+  setWinMesh(mesh: AbstractMesh | TransformNode) {
+    if (!mesh) {
+      console.error("Cannot set win mesh: mesh is null or undefined");
+      return;
+    }
+    this.removeWinMesh(); // first we remove any existing win mesh
+
+    if (!mesh.metadata) mesh.metadata = {};
+    mesh.metadata.isWinMesh = true; // Mark as win mesh
+    this.winMesh = mesh;
+    console.log(`Win mesh set to: ${mesh}`);
+  }
+
+  getWinMesh() {
+    return this.winMesh;
+  }
+
+  removeWinMesh() {
+    if (this.winMesh) {
+      this.winMesh.metadata.isWinMesh = false; // Unmark as win mesh
+      console.log(`Removing win mesh: ${this.winMesh.metadata}`);
+      this.winMesh = null;
+      console.log("Win mesh removed : win");
+    } else {
+      console.warn("No win mesh to remove");
+    }
   }
 }

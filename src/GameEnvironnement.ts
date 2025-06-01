@@ -492,7 +492,7 @@ export class GameEnvironment {
     this._setupGround(); // if you want to use heightmap, pass the path to the heightmap image like that this._setupGround("./heightmaps/dunes.png")
     // this._setupGround("./heightmaps/dunes.png")
     this._setupPlayerCamera(this.canvas, thirdPers);
-    this.testBallAndHeavyCube();
+    // this.testBallAndHeavyCube();
     this.setupInfosGUI();
     this.setupDebugGUI();
 
