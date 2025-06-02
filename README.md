@@ -14,6 +14,7 @@ competition organized by **CGI** (on theme: *Dream Land*).
 ## Ready to Jump In?
 
 Play **Fuzzleton** live right now on my VPS:
+
 ➡️ [https://fuzzleton.tristan-patout.fr](https://fuzzleton.tristan-patout.fr)
 
 ---
@@ -21,6 +22,7 @@ Play **Fuzzleton** live right now on my VPS:
 ## 💫 Watch It In Action!
 
 Curious how Fuzzleton looks? Check out this gameplay/demo video to see the teddy bear chaos and level editor magic come alive:
+
 🎬 [Watch the Fuzzleton Gameplay Video](https://youtu.be/mubr2ulQkJQ)
 
 ---
@@ -37,10 +39,12 @@ You guessed it, not only can you play the game, but you have to **build your own
 ---
 
 ## The Vision — Why Fuzzleton?
+
 After setting up the basis of the project came fatidic questions: *What do I want to create?*, *How could I make levels integrating physics in a fun and easy way?*: Sure, Blender is fantastic for modeling but very time consumming, and exporting files, reconfiguring everything in the game quickly becomes a headache. I have tried Godot too, it is a solid engine too, but the same problems arose for integrating to my Babylon.js project.
 
 So, what was the answer? Build my very own level editor, fully integrated into the Babylon game itself! Allowing me to create levels rapidly from various objects models assets kits (saved from my own cloud files serving). What was at start a simple idea for my to create levels faster turned into the core concept of my project: 
 The long-run dream is to create a Fuzzelton **community playground** where imagination knows no bounds.
+
 * Navigate your teddy through chaotic kid’s rooms filled with oversized toys
 * Overcome obstacles, bounce and find the hidden object
 * Race other players to become the **King of the Room** — the teddy bear everyone dreams of!
