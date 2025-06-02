@@ -1,4 +1,4 @@
-
+<!-- 
 ## Avancées depuis le dernier rendu
 
 ### Player Physics Character Controller retravaillé 
@@ -47,4 +47,4 @@ Tristan Patout.
 
 ![alt text](image.png)
 ![alt text](image-1.png)
-
+ -->
