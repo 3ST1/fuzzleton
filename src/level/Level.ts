@@ -341,21 +341,387 @@ export class Level {
   //   // );
   // }
 
+  defaultLvlData = {
+    name: "defaultlvl",
+    meshes: [
+      {
+        id: "placed-kaykit/swiperDouble_teamBlue-1748886318770",
+        type: "model",
+        modelId: "kaykit/swiperDouble_teamBlue",
+        rootFolder: "/api/assets/",
+        filename: "kaykit/swiperDouble_teamBlue.glb",
+        position: {
+          x: 19.996657094624652,
+          y: 0,
+          z: 31.38514263689666,
+        },
+        rotation: {
+          x: 0,
+          y: -0.9981862937249513,
+          z: 0,
+          w: 0.06020068952636533,
+        },
+        scaling: {
+          x: 1,
+          y: 1,
+          z: 1,
+        },
+        isWinMesh: false,
+        rotation_animation: {
+          enabled: true,
+          axis: {
+            x: 0,
+            y: 1,
+            z: 0,
+          },
+          speed: 0.01,
+        },
+        physics: {
+          enabled: true,
+          mass: 0,
+          friction: 1,
+          restitution: 3,
+        },
+      },
+      {
+        id: "placed-kaykit/swiperDouble_teamRed-1748886318792",
+        type: "model",
+        modelId: "kaykit/swiperDouble_teamRed",
+        rootFolder: "/api/assets/",
+        filename: "kaykit/swiperDouble_teamRed.glb",
+        position: {
+          x: 46.928026101372595,
+          y: 1.4210854715202004e-14,
+          z: 47.54704630645058,
+        },
+        rotation: {
+          x: 0,
+          y: -0.022089783393034097,
+          z: 0,
+          w: -0.9997559909660374,
+        },
+        scaling: {
+          x: 1,
+          y: 1,
+          z: 1,
+        },
+        isWinMesh: false,
+        rotation_animation: {
+          enabled: true,
+          axis: {
+            x: 0,
+            y: 1,
+            z: 0,
+          },
+          speed: -0.05,
+        },
+        physics: {
+          enabled: true,
+          mass: 0,
+          friction: 1,
+          restitution: 3,
+        },
+      },
+      {
+        id: "placed-kaykit/star-1748886318812",
+        type: "model",
+        modelId: "kaykit/star",
+        rootFolder: "/api/assets/",
+        filename: "kaykit/star.glb",
+        position: {
+          x: 38.5,
+          y: 10.0,
+          z: -8.0,
+        },
+        rotation: {
+          x: 0,
+          y: 0,
+          z: 0,
+          w: 1,
+        },
+        scaling: {
+          x: 1,
+          y: 1,
+          z: 1,
+        },
+        isWinMesh: true,
+        physics: {
+          enabled: true,
+          mass: 0,
+          friction: 0.2,
+          restitution: 0.2,
+        },
+      },
+      {
+        id: "placed-kaykit/spikeRoller-1748886318819",
+        type: "model",
+        modelId: "kaykit/spikeRoller",
+        rootFolder: "/api/assets/",
+        filename: "kaykit/spikeRoller.glb",
+        position: {
+          x: 32,
+          y: 0,
+          z: -23,
+        },
+        rotation: {
+          x: 0,
+          y: -0.126793186154813,
+          z: 0,
+          w: -0.991929174862432,
+        },
+        scaling: {
+          x: 2.853116706110003,
+          y: 2.853116706110003,
+          z: 2.853116706110003,
+        },
+        isWinMesh: false,
+        rotation_animation: {
+          enabled: true,
+          axis: {
+            x: 0,
+            y: 1,
+            z: 0,
+          },
+          speed: 0.04,
+        },
+        physics: {
+          enabled: true,
+          mass: 0,
+          friction: 0.2,
+          restitution: 8,
+        },
+      },
+      {
+        id: "placed-kaykit/ball-1748886318835",
+        type: "model",
+        modelId: "kaykit/ball",
+        rootFolder: "/api/assets/",
+        filename: "kaykit/ball.glb",
+        position: {
+          x: 30,
+          y: 4.000000000000007,
+          z: 2,
+        },
+        rotation: {
+          x: 0,
+          y: 0,
+          z: 0,
+          w: 1,
+        },
+        scaling: {
+          x: 2.853116706110003,
+          y: 2.853116706110003,
+          z: 2.853116706110003,
+        },
+        isWinMesh: false,
+        physics: {
+          enabled: true,
+          mass: 2,
+          friction: 0.2,
+          restitution: 0.8,
+        },
+      },
+      {
+        id: "placed-kaykit/arrow_teamBlue-1748886318853",
+        type: "model",
+        modelId: "kaykit/arrow_teamBlue",
+        rootFolder: "/api/assets/",
+        filename: "kaykit/arrow_teamBlue.glb",
+        position: {
+          x: -2,
+          y: 2.9999999999999996,
+          z: 182,
+        },
+        rotation: {
+          x: 0,
+          y: 0,
+          z: 0,
+          w: 1,
+        },
+        scaling: {
+          x: 1,
+          y: 1,
+          z: 1,
+        },
+        isWinMesh: false,
+        physics: {
+          enabled: true,
+          mass: 1,
+          friction: 0.2,
+          restitution: 0.2,
+        },
+      },
+      {
+        id: "placed-platformerkit/Sofa_Large-1748886318864",
+        type: "model",
+        modelId: "platformerkit/Sofa_Large",
+        rootFolder: "/api/assets/",
+        filename: "platformerkit/Sofa_Large.glb",
+        position: {
+          x: 40.34392722309838,
+          y: 0,
+          z: -8.180913303985866,
+        },
+        rotation: {
+          x: -3.9252311467094367e-17,
+          y: -0.7071067811865471,
+          z: 3.925231146709436e-17,
+          w: 0.7071067811865472,
+        },
+        scaling: {
+          x: 3.1384283767210035,
+          y: 3.1384283767210035,
+          z: 3.1384283767210035,
+        },
+        isWinMesh: false,
+        physics: {
+          enabled: true,
+          mass: 0, // 0 or this will bounce everywhere
+          friction: 0.8,
+          restitution: 5,
+        },
+      },
+      {
+        id: "placed-platformerkit/Cardboard_Box_High-1748886318869",
+        type: "model",
+        modelId: "platformerkit/Cardboard_Box_High",
+        rootFolder: "/api/assets/",
+        filename: "platformerkit/Cardboard_Box_High.glb",
+        position: {
+          x: 36.705557274381206,
+          y: 2.000000000000003,
+          z: 10.2062462286316,
+        },
+        rotation: {
+          x: 0,
+          y: 0,
+          z: 0,
+          w: 1,
+        },
+        scaling: {
+          x: 59.049000000000014,
+          y: 59.049000000000014,
+          z: 59.049000000000014,
+        },
+        isWinMesh: false,
+        physics: {
+          enabled: true,
+          mass: 2.5,
+          friction: 0.2,
+          restitution: 0.1,
+        },
+      },
+      {
+        id: "placed-platformerkit/Cardboard_Box_High-1748886318880",
+        type: "model",
+        modelId: "platformerkit/Cardboard_Box_High",
+        rootFolder: "/api/assets/",
+        filename: "platformerkit/Cardboard_Box_High.glb",
+        position: {
+          x: 35.953605364518786,
+          y: 4.000000000000002,
+          z: 9.847557176639171,
+        },
+        rotation: {
+          x: 0,
+          y: 0,
+          z: 0,
+          w: 1,
+        },
+        scaling: {
+          x: 36.45,
+          y: 36.45,
+          z: 36.45,
+        },
+        isWinMesh: false,
+        physics: {
+          enabled: true,
+          mass: 2,
+          friction: 0.2,
+          restitution: 0.1,
+        },
+      },
+      {
+        id: "placed-platformerkit/Cardboard_Box_Low-1748886318892",
+        type: "model",
+        modelId: "platformerkit/Cardboard_Box_Low",
+        rootFolder: "/api/assets/",
+        filename: "platformerkit/Cardboard_Box_Low.glb",
+        position: {
+          x: 36.24857407117376,
+          y: 2.0000000000000044,
+          z: 12.56034298249626,
+        },
+        rotation: {
+          x: 0,
+          y: 0,
+          z: 0,
+          w: 1,
+        },
+        scaling: {
+          x: 50,
+          y: 50,
+          z: 50,
+        },
+        isWinMesh: false,
+        physics: {
+          enabled: true,
+          mass: 2,
+          friction: 0.2,
+          restitution: 0.1,
+        },
+      },
+      {
+        id: "placed-platformerkit/Cardboard_Box_Low-1748886318903",
+        type: "model",
+        modelId: "platformerkit/Cardboard_Box_Low",
+        rootFolder: "/api/assets/",
+        filename: "platformerkit/Cardboard_Box_Low.glb",
+        position: {
+          x: 33.80383315921077,
+          y: 1.9999999999999973,
+          z: 9.99112142639487,
+        },
+        rotation: {
+          x: -0.35355339059327356,
+          y: 0.35355339059327356,
+          z: -0.6123724356957941,
+          w: 0.6123724356957942,
+        },
+        scaling: {
+          x: 40,
+          y: 40,
+          z: 40,
+        },
+        isWinMesh: false,
+        physics: {
+          enabled: true,
+          mass: 2,
+          friction: 0.2,
+          restitution: 0.1,
+        },
+      },
+    ],
+    metadata: {
+      createdAt: "2025-06-02T17:45:42.075Z",
+      version: "0.1.0",
+    },
+  };
+
   public async initLevel(): Promise<void> {
     console.log("init Level...");
     this.loadBlanketFort();
+    let lvlFromFile: levelFromFile;
 
     if (this.initialLevelData) {
       console.log("Initializing level with provided data...");
-      const lvlFromFile = new levelFromFile(
+      lvlFromFile = new levelFromFile(
         this.scene,
         this.gameEnv,
         this.player,
         this.assetManagerService,
         this.initialLevelData
       );
-
-      await lvlFromFile.load();
     } else {
       // Default level loading if no test data is provided
       // this.loadSpikeRoller();
@@ -367,21 +733,15 @@ export class Level {
       this.physicsPlane();
 
       await this.assetManagerService.loadAssetsAsync();
-      // // making it async to wait for the assets to be loaded
-      // await new Promise<void>((resolve) => {
-      //   assetManager.onFinish = () => resolve();
-      //   assetManager.load();
-      // });
-      // Potentially load a default level from file if desired for normal PLAY mode
-      // const lvlFromFile = new levelFromFile(this.scene, this.gameEnv, this.player);
-      const lvlFromFile = new levelFromFile(
+      lvlFromFile = new levelFromFile(
         this.scene,
         this.gameEnv,
         this.player,
-        this.assetManagerService
+        this.assetManagerService,
+        this.defaultLvlData
       );
     }
-
+    await lvlFromFile.load();
     this.placeBlanketFort();
     this.generateWalls();
     console.log("Level Loaded!");
