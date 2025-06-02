@@ -73,74 +73,87 @@ export class GameEnvironment {
       );
       this.camera.setPosition(new Vector3(0, 12, 3));
       // zoom in on the player
-      this.camera.radius = 12;
-      this.camera.lowerRadiusLimit = 10;
+      // this.camera.radius = 12;
+      this.camera.lowerRadiusLimit = 4;
       this.camera.upperRadiusLimit = 55;
+      this.camera.lowerBetaLimit = 0.1;
 
       // this.camera.checkCollisions = true; // FIND A WAY TO NOT LAG when a lot of objects are in the scene
       // ->  PROBABLY DO A RAYCASTING TO CHECK IF THE CAMERA IS COLLIDING WITH THE GROUND
-      this.scene.registerBeforeRender(() => {
-        if (!this.ground || !this.camera) {
-          return;
-        }
+      const defaultRadius = 12; // normal camera distance from target
+      const minRadiusAtMaxBeta = 5; // closest distance when looking very upward
+      const minRadius = 4; // absolute minimum radius (used for zoomT calculation)
+      const betaThreshold = Math.PI / 2.4; // angle at which camera starts zooming in when looking up
+      const maxBetaDefault = Math.PI / 2.25; // Normal upper limit for vertical camera angle
+      const maxBetaZoomed = 1.65; // Max vertical angle allowed when zoomed in (almost straight up)
 
-        const cameraPosition = this.camera.position;
-        const groundHeight = this.ground.getHeightAtCoordinates(
-          cameraPosition.x,
-          cameraPosition.z
+      this.scene.registerBeforeRender(() => {
+        if (!this.ground || !this.camera) return; // Make sure ground and camera exist
+
+        const cam = this.camera;
+        const camPos = cam.position;
+        const beta = cam.beta; // current vertical angle of camera
+
+        const groundY = this.ground.getHeightAtCoordinates(camPos.x, camPos.z);
+        if (groundY === null) return; // no ground height info we skip
+
+        // Calculate how zoomed in the camera is (0 = far, 1 = close)
+        const zoomT = Math.min(
+          1,
+          (defaultRadius - cam.radius) / (defaultRadius - minRadius)
         );
 
-        if (groundHeight === null) {
-          return;
+        // Calculate the base safe height of the target
+        const baseSafeY = groundY + 3;
+
+        // height added to the target based on zoom amount (up to +3)
+        const extraTargetYOffset = Scalar.Lerp(0, 3, zoomT);
+
+        // final safe target height (base + extra offset)
+        const safeTargetY = baseSafeY + extraTargetYOffset;
+
+        // Slowly move target Y upwards if it's below safe height
+        if (cam.target.y < safeTargetY) {
+          cam.target.y = Scalar.Lerp(cam.target.y, safeTargetY, 0.1);
         }
 
-        if (cameraPosition.y < groundHeight + 1) {
-          // Camera is too low ( going through the ground).
-          // We need to adjust camera beta (angle) and/or radius (distance)
-          // ensure camera stay in safe position above ground
-          this.camera.target.y = groundHeight + 1; // keeps camera target above ground
+        // Same safe height applied to camera position Y to avoid clipping the ground
+        const safeCameraY = baseSafeY + extraTargetYOffset;
 
-          //tilt camera upwards (decrease beta)
-          // Target beta is current beta minus a step clamped by lowerBetaLimit
-          const targetBeta = Math.max(
-            this.camera.lowerBetaLimit ?? 0.01, // Use camera's limit or a safe default
-            this.camera.beta - 0.1
-          );
-          this.camera.beta = Scalar.Lerp(this.camera.beta, targetBeta, 0.2);
+        // Slowly move camera Y upwards if below safe height
+        if (camPos.y < safeCameraY) {
+          cam.position.y = Scalar.Lerp(camPos.y, safeCameraY, 0.1);
+        }
 
-          // try to zoom camera out (increase radius)
-          // Target radius is current radius plus a step clamped by upperRadiusLimit
-          const targetRadius = Math.min(
-            this.camera.upperRadiusLimit ?? 55,
-            this.camera.radius - 3
-          );
-          this.camera.radius = Scalar.Lerp(
-            this.camera.radius,
-            targetRadius,
-            0.2
+        // If camera is looking up beyond threshold, zoom camera in
+        if (beta > betaThreshold) {
+          // Calculate progress between threshold and looking straight up
+          const t = Math.min(
+            1,
+            (beta - betaThreshold) / (Math.PI / 2 - betaThreshold)
           );
 
-          // console.log(`Camera ground proximity: Corrected beta to ${this.camera.beta.toFixed(2)}, radius to ${this.camera.radius.toFixed(2)}`);
+          // We interpolate thz radius between default and minRadiusAtMaxBeta based on t
+          const targetRadius = Scalar.Lerp(
+            defaultRadius,
+            minRadiusAtMaxBeta,
+            t
+          );
+
+          // Smoothly update camera radius towards target radius
+          cam.radius = Scalar.Lerp(cam.radius, targetRadius, 0.05);
         } else {
-          if (Math.abs(this.camera.radius - 12) > 0.1) {
-            // Tolerance to prevent constant lerping
-            this.camera.radius = Scalar.Lerp(this.camera.radius, 12, 0.03);
-          }
-          const clampedDefaultBeta = Math.max(
-            this.camera.lowerBetaLimit ?? 0.01,
-            Math.min(
-              this.camera.upperBetaLimit ?? Math.PI / 2 - 0.01,
-              Math.PI / 3
-            )
-          );
-          if (Math.abs(this.camera.beta - clampedDefaultBeta) > 0.01) {
-            // Tolerance
-            this.camera.beta = Scalar.Lerp(
-              this.camera.beta,
-              clampedDefaultBeta,
-              0.03
-            );
-          }
+          // If looking less steep, smoothly reset radius to default distance
+          cam.radius = Scalar.Lerp(cam.radius, defaultRadius, 0.02);
+        }
+
+        // Adjust max vertical angle allowed based on zoom amount (look higher when zoomed in)
+        cam.upperBetaLimit = Scalar.Lerp(maxBetaDefault, maxBetaZoomed, zoomT);
+
+        // Slowly nudge beta back toward default vertical angle when not looking up
+        const defaultBeta = Math.PI / 2.25;
+        if (Math.abs(beta - defaultBeta) > 0.01) {
+          cam.beta = Scalar.Lerp(beta, defaultBeta, 0.01);
         }
       });
 
@@ -532,7 +545,8 @@ export class GameEnvironment {
       }
 
       // TEST MAX DISTANCE DISABLE
-      const maxDistance = 100;
+      // const maxDistance = 100;
+      const maxDistance = 500;
 
       const playerPos = char.player.position;
 
