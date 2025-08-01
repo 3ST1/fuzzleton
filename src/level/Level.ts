@@ -710,7 +710,7 @@ export class Level {
 
   public async initLevel(): Promise<void> {
     console.log("init Level...");
-    this.loadBlanketFort();
+    // this.loadBlanketFort();
     let lvlFromFile: levelFromFile;
 
     if (this.initialLevelData) {
@@ -742,7 +742,7 @@ export class Level {
       );
     }
     await lvlFromFile.load();
-    this.placeBlanketFort();
+    // this.placeBlanketFort();
     this.generateWalls();
     console.log("Level Loaded!");
   }

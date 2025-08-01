@@ -1,16 +1,13 @@
-import type { IPhysicsEngine } from "@babylonjs/core/Physics/IPhysicsEngine";
-import { GameEnvironment as GameEnvironment } from "../GameEnvironnement";
 import {
-  AbstractEngine,
   AbstractMesh,
   ActionManager,
   AnimationGroup,
   ArcRotateCamera,
-  AssetContainer,
+  Bone,
   Color3,
   Color4,
+  CreateBox,
   ExecuteCodeAction,
-  HighlightLayer,
   IPhysicsCollisionEvent,
   Mesh,
   MeshBuilder,
@@ -30,97 +27,125 @@ import {
   Skeleton,
   Sound,
   StandardMaterial,
-  Texture,
+  TransformNode,
   Vector3,
 } from "@babylonjs/core";
 import { GRAVITY } from "../App";
 import { getFurMaterial } from "../utils";
+import { AnimationKey, InputMap, PlayerKeys, PlayerDirection } from "./types";
+import { GameEnvironment as GameEnvironment } from "../GameEnvironnement";
 
 class PlayerController {
-  debug: boolean = false;
+  debug: boolean = true;
 
   public player!: Mesh;
-  private aggregatePlayer!: PhysicsAggregate;
+  private playerPhysicsAggregate!: PhysicsAggregate;
+
   private scene!: Scene;
   private camera!: ArcRotateCamera;
   environment: GameEnvironment;
   thirdPerson: boolean;
   private physicsEngine: Nullable<PhysicsEngine>;
-  // private engine!: AbstractEngine;
+
+  private inputMap: InputMap = {};
 
   private playerDirection = -1;
-  // private highlightLayer?: HighlightLayer;
-  // private velocity = new Vector3(0, -9.8, 0);
 
   private moveDirection = new Vector3(0, 0, 0);
   private velocity = new Vector3(0, 0, 0);
 
   private readonly baseImpulseStrength = GRAVITY * 10;
   private impulseStrength = this.baseImpulseStrength;
-  private readonly jumpImpulse = GRAVITY * 250; // Adjust this value to match your desired jump height
+  private readonly jumpImpulse = GRAVITY * 250;
   private readonly stepImpulse = GRAVITY * 400;
 
-  private isMoving = false;
-  private inputMap: InputMap = {};
-  public meshContent!: AssetContainer;
+  readonly maxNbJumps = 3; // max number of jumps
+  readonly maxJumpHeight = 3; // default max jump height limit
+  readonly jumpRegenInterval = 750; // in  ms - 0.75s btw each jump regeneration ticks
 
-  // private momentum = new Vector3(0, 0, 0);
-
-  hitBoxHeight = 3.6;
-  hitBoxRadius = 0.5;
-
-  private onGroundRaycast = new PhysicsRaycastResult();
-  // to check if the player is on the air
-  private inAirState = {
-    startHeight: 0, // starting height of the jump
-    limit: 3, // maximum height of the jump
-    defaultLimit: 3, // default max height limit of a jump
-    jump: false,
-    fall: false,
-    hasTask: false, // Is there is a task to jump
-    // startedAtTime: 0, // time when the jump started (for limit)
+  private playerState = {
+    isMoving: false, // if the player moves
+    isInSleep: false, // if the player is in sleep mode
+    isWakingUp: false, // if the player is waking up
+    isRunning: false, // is the player running
+    isOnGround: false, // is the player on the ground
+    step: {
+      stepTask: false, // is there a task to go up a step
+      stepHeight: 0, // height of the step
+    },
+    jump: {
+      airState: {
+        startHeight: 0, // starting height of the jump
+        limit: this.maxJumpHeight, // maximum height of the jump
+        jump: false, // if the player is jumping (currently in the air)
+        fall: false, // if the player is falling (currently in the air)
+        jumpTask: false, // Is there is a task to jump (a jump press has been detected)
+      },
+      stamina: {
+        current: this.maxNbJumps, // current nb jumps available
+        regenTimer: 0, // timer for regeneration
+        canJump: true, // to indicate if player can jump
+      },
+    },
   };
 
-  // jump stamina system
-  private jumpStamina = {
-    current: 3, // current nb jumps available
-    max: 3, // max nb jumps
-    regenTimer: 0, // timer for regeneration
-    regenInterval: 750, //in  ms - 0.75s btw eac regeneration ticks
-    canJump: true, // to indicate if player can jump
+  // rays used to detect a small step in front of the player
+  private stepRays: [Ray, RayHelper | null, PhysicsRaycastResult][] = [];
+  // rays used to detect the ground under the player
+  private groundRays: [Ray, RayHelper | null, PhysicsRaycastResult][] = [];
+
+  // player hitbox dimensions
+  private hitBoxHeight = 3.6;
+  private hitBoxRadius = 0.5;
+
+  // box helper for dir
+  private boxHelper!: Mesh;
+
+  // player mesh loaded from the glb file
+  private playerSkeletons!: Skeleton[];
+  private playerHeroMeshes!: AbstractMesh[];
+  private playerAnimationGroups!: AnimationGroup[];
+
+  // player sounds
+  public sounds!: { walking: Sound };
+
+  // player keys
+  public playerKeys: PlayerKeys = {
+    up: "KeyW",
+    down: "KeyS",
+    left: "KeyA",
+    right: "KeyD",
+    jumping: "Space",
+    running: "ShiftLeft",
+    grab: "KeyG",
+    push: "KeyP",
+    rightHand: "KeyR",
+    leftHand: "KeyL",
   };
 
-  private runningState = {
-    isRunning: false,
-  };
-  // to climb a step in front of the player
-  // private stepRay!: Ray;
-  // private onStepRaycast = new PhysicsRaycastResult();
-  stepRays: [Ray, RayHelper | null, PhysicsRaycastResult][] = [];
-  private onStepState = {
-    height: 0, // The height of the step
-    task: false, // is there a task to go up the step
-  };
+  // base speed of the player multiplied to delta time and impulse strength
+  private readonly playerSpeed: number = 1;
+  // player mass
+  private readonly playerMass = 55; // Player mass
 
-  // loaded from the glb file
-  skeletons!: Skeleton[];
-  heroMeshes!: AbstractMesh[];
-  animationGroups!: AnimationGroup[];
+  // win meshes when player collides with them it triggers a win condition // TO DO: TO IMPROVE
+  public winMeshes: any;
+  private triggeredWinMeshes: Set<any> = new Set(); // to keep track of already triggered win meshes
 
-  sounds!: { walking: Sound };
-  boxHelper!: Mesh;
-  playerKeys: any;
-  speed: number = 1;
-  // onStepRayHelper: RayHelper;
-  floorRay: any;
-  floorRayHelper!: RayHelper;
-  // Add array for multiple ground rays
-  groundRays: [Ray, RayHelper | null, PhysicsRaycastResult][] = [];
-  isInSleep: boolean = false;
-  isWakingUp: boolean = false;
-  winMeshes: any;
+  // --- ADDED PROPERTIES FOR GRABBING ---
+  private grabbedObject: Nullable<PhysicsAggregate> = null;
+  private readonly grabDistance = 2; // Max distance to grab an object
+  private readonly throwStrength = 150; // Impulse strength for throwing
+  private frontGrabAttachmentPoint!: TransformNode; // An invisible node to hold the object
+  releasedTime: number | null = null; // Time when the object was released
 
-  private triggeredWinMeshes: Set<any> = new Set();
+  private rightHandBone: Nullable<Bone> = null;
+  private leftHandBone: Nullable<Bone> = null;
+  // private handAttachmentNode: Nullable<TransformNode> = null;
+  private rightHandObj: Mesh | null = null;
+  private leftHandObj: Mesh | null = null;
+  private rightHandObjAggregate: Nullable<PhysicsAggregate> = null;
+  private leftHandObjAggregate: Nullable<PhysicsAggregate> = null;
 
   constructor(
     scene: Scene,
@@ -130,7 +155,7 @@ class PlayerController {
     this.scene = scene;
     this.environment = environnement;
     this.camera = environnement.camera;
-    this.thirdPerson = thirdPers; // to use the third person view (true) or first person view (false)
+    this.thirdPerson = thirdPers; // to use the third person view (true) or first person view (false) // for the moment 1st not working
     this.physicsEngine = this.scene.getPhysicsEngine() as PhysicsEngine; // get havok physics engine
     this.winMeshes = [];
     this.init();
@@ -141,11 +166,56 @@ class PlayerController {
     // set the camera target to the player
     this.camera?.setTarget(this.player);
     // this.setPlayerPhysics();
-    this.setKeysObserver(); // set the movement leys and the keys observer
+
+    this.setupHandAttachment();
+    this.testAttachObjectToHand();
+
+    // set the movement keys and the keys observer
+    this.setKeysObserver();
+
+    // set player sounds
     this.setPlayerSounds();
+
+    // --- START: ADDED GRAB ATTACHMENT POINT INITIALIZATION ---
+    // Create an invisible transform node and parent it to the player.
+    // This will act as the point where a grabbed object is held.
+    this.frontGrabAttachmentPoint = new TransformNode(
+      "attachmentPoint",
+      this.scene
+    );
+    this.frontGrabAttachmentPoint.parent = this.player;
+    // Position the attachment point in front of and slightly above the player capsule's center
+    this.frontGrabAttachmentPoint.position = new Vector3(
+      0,
+      0.5,
+      this.hitBoxRadius + 1.2
+    );
+
+    // show the attachment point in debug mode
+    if (this.debug) {
+      const attachmentPointMesh = MeshBuilder.CreateSphere(
+        "attachmentPointSphere",
+        { diameter: 0.2 },
+        this.scene
+      );
+      attachmentPointMesh.position = this.frontGrabAttachmentPoint.position;
+      attachmentPointMesh.material = new StandardMaterial(
+        "attachmentPointMaterial",
+        this.scene
+      );
+      (attachmentPointMesh.material as StandardMaterial).emissiveColor =
+        Color3.Green();
+      attachmentPointMesh.parent = this.frontGrabAttachmentPoint; // Attach to the attachment point
+    }
+    // --- END: ADDED GRAB ATTACHMENT POINT INITIALIZATION ---
 
     this.player.position = new Vector3(49, 12, 58);
     this.setPlayerToSleep();
+
+    this.scene.onBeforeRenderObservable.add(() => {
+      this.updateGrabbedObject();
+      this.updateHandObjects();
+    });
   }
 
   private async _loadPlayer(
@@ -169,6 +239,7 @@ class PlayerController {
     var hero = heroMeshes[0];
     // var skeleton = skeletons[0];
 
+    // Setting the bear fur material
     const fur = getFurMaterial(this.scene);
     heroMeshes.forEach((mesh) => {
       // if mesh name does not contain the word eye, mouth, nose
@@ -180,7 +251,6 @@ class PlayerController {
         mesh.material = fur;
       }
     });
-    //////////////////////////
 
     // Set the priority of the animations to idle
     animationGroups.forEach((item, index) => {
@@ -193,17 +263,13 @@ class PlayerController {
       }
     });
 
-    // box helper used for
+    // box helper used for dir
     this.boxHelper = MeshBuilder.CreateBox(
-      "lbl", // put a better name
-      { height: 3.2 },
+      "characterControllerBoxHelper",
+      { height: 3.2, width: 1.2 },
       this.scene
     );
-    if (this.debug) {
-      this.boxHelper.visibility = 0.7;
-    } else {
-      this.boxHelper.visibility = 0;
-    }
+
     this.boxHelper.position.y = 3;
 
     // Create the player as a Capsule and attach the hero mesh to it as a child
@@ -214,8 +280,10 @@ class PlayerController {
       this.scene
     );
     if (this.debug) {
+      this.boxHelper.visibility = 0.7;
       player.visibility = 0.7;
     } else {
+      this.boxHelper.visibility = 0;
       player.visibility = 0;
     }
 
@@ -227,9 +295,9 @@ class PlayerController {
     // Attach the hero mesh to the player
     player.addChild(hero);
 
-    this.heroMeshes = heroMeshes;
-    this.skeletons = skeletons;
-    this.animationGroups = animationGroups;
+    this.playerHeroMeshes = heroMeshes;
+    this.playerSkeletons = skeletons;
+    this.playerAnimationGroups = animationGroups;
 
     // Add shadows
     heroMeshes.forEach((mesh) => {
@@ -240,7 +308,7 @@ class PlayerController {
   }
 
   public async setPlayerPhysics() {
-    const mesheRoot: AbstractMesh = this.heroMeshes[0];
+    // const mesheRoot: AbstractMesh = this.playerHeroMeshes[0];
     const player: Mesh = this.player;
     player.checkCollisions = true;
 
@@ -249,101 +317,83 @@ class PlayerController {
       player, // The mesh to apply the physics to
       PhysicsShapeType.CAPSULE, // Use capsule shape for physics
       {
-        mass: 55, // player weights 15kg
+        mass: this.playerMass,
         friction: 1,
         restitution: 0,
       },
       this.scene
     );
 
-    // Set motion type to dynamic (the player can move under physics influence)
+    // Set player collision masks
+    // Player belongs to group 1
+    const playerShape = aggregate.shape;
+    playerShape.filterMembershipMask = 1;
+    // Player collides with everything (15) EXCEPT held objects (6)
+    playerShape.filterCollideMask = 15 & ~6;
+
+    // motion type dynamic ( player can move under physics)
     aggregate.body.setMotionType(PhysicsMotionType.DYNAMIC);
 
-    // Disable pre-step calculations for performance improvement (optional)
+    // Disable pre-step calculations for performance improvement
     aggregate.body.disablePreStep = false;
 
-    // Set the mass properties for the physics body (inertia is set to zero)
+    // Set the mass properties for the physics body with no inertia
     aggregate.body.setMassProperties({
       inertia: new Vector3(0, 0, 0),
     });
 
-    // Add linear damping to prevent excessive sliding and momentum buildup
-    // aggregate.body.setLinearDamping(3.9);
+    // linear damping to prevent excessive sliding and momentum buildup
     aggregate.body.setLinearDamping(4.9);
     aggregate.body.setAngularDamping(1.9);
 
-    // Enable collision callback (for when the player collides with other objects)
+    // Enable collision callback (we will use that for when the player collides with other objects)
+    // then set up a collision observer to trigger a callback when a collision occurs
     aggregate.body.setCollisionCallbackEnabled(true);
-
-    // Set up a collision observer to trigger a callback when a collision occurs
     const collisionObservable = aggregate.body.getCollisionObservable();
     collisionObservable.add(this.onCollision);
 
-    this.aggregatePlayer = aggregate;
+    this.playerPhysicsAggregate = aggregate;
 
+    // setup the rays to detect the ground and steps for the player
+    this.setPlayerRays();
+  }
+
+  private setPlayerRays() {
+    this.setupStepRays();
+    this.setupGroundRays();
+  }
+
+  private setupStepRays() {
     // Create and attach 4 rays for step up detection
-    const vectors = [
+    const stepRays = [
       new Vector3(0, -this.hitBoxHeight / 2 + 0.6, this.hitBoxRadius + 0.1),
-      new Vector3(0, -this.hitBoxHeight / 2 + 1.6, -this.hitBoxRadius - 0.1),
+      new Vector3(0, -this.hitBoxHeight / 2 + 0.6, -this.hitBoxRadius - 0.1),
       new Vector3(-this.hitBoxRadius - 0.1, -this.hitBoxHeight / 2 + 0.6, 0),
       new Vector3(this.hitBoxRadius + 0.1, -this.hitBoxHeight / 2 + 0.6, 0),
     ];
 
-    for (let i = 0; i < 4; i++) {
-      this.stepRays[i] = [
-        new Ray(Vector3.Zero(), Vector3.Up()),
-        null,
-        new PhysicsRaycastResult(),
-      ];
+    for (let i = 0; i < stepRays.length; i++) {
+      const ray = new Ray(
+        Vector3.Zero(),
+        Vector3.Up(),
+        this.hitBoxHeight / 2 // length of the ray
+      );
+      const rayHelper = new RayHelper(ray);
 
-      this.stepRays[i][1] = new RayHelper(this.stepRays[i][0]);
-      this.stepRays[i][1]?.attachToMesh(
+      rayHelper.attachToMesh(
         this.player,
         new Vector3(0, -1, 0),
-        vectors[i],
-        0.59 // we don't want to detect the ground but the step so must be less than 0.6
+        stepRays[i],
+        0.599 // we don't want to detect the ground but the step so must be less than 0.6 as set to +0.6
       );
+
+      this.stepRays.push([ray, rayHelper, new PhysicsRaycastResult()]);
     }
+  }
 
-    // this.stepRay = new Ray(
-    //   Vector3.Zero(),
-    //   Vector3.Up()
-    // ); // Create the ray
-    // const stepRayHelper = new RayHelper(this.stepRay); // Helper to visualize the ray
-
-    // Attach the ray to the player mesh with the specified direction and origin offsets
-    // stepRayHelper.attachToMesh(
-    //   this.player, // Mesh to attach the ray to
-    //   new Vector3(0, -1, 0), // Ray direction offset
-    //   new Vector3(
-    //     this.hitBoxRadius + 0.35,
-    //     -this.hitBoxHeight / 2 + 0.5,
-    //     0
-    //   ), // Ray origin offset
-    //   0.49 // Ray length
-    // );
-
-    // // show the ray
-    // stepRayHelper.show(this.scene, new Color3(1, 0, 0));
-    // this.onStepRayHelper = stepRayHelper;
-
-    // Create a ray for detecting the ground beneath the player
-    this.floorRay = new Ray(Vector3.Zero(), Vector3.Down());
-
-    const floorRayHelper = new RayHelper(this.floorRay);
-    floorRayHelper.attachToMesh(
-      this.player,
-      new Vector3(0, -1, 0),
-      new Vector3(0, -this.hitBoxHeight / 2 + 0.5, 0),
-      1
-    );
-
-    // show the ray
-    floorRayHelper.show(this.scene, new Color3(0, 1, 0));
-    this.floorRayHelper = floorRayHelper;
-
-    // Create multiple ground rays at different positions
-    const groundRayOffsets = [
+  private setupGroundRays() {
+    // Create multiple ground rays at different positions for detecting the ground beneath the player
+    const groundRays = [
       new Vector3(0, 0, 0), // Center
       new Vector3(this.hitBoxRadius * 0.7, 0, 0), // Right
       new Vector3(-this.hitBoxRadius * 0.7, 0, 0), // Left
@@ -351,7 +401,7 @@ class PlayerController {
       new Vector3(0, 0, -this.hitBoxRadius * 0.7), // Back
     ];
 
-    for (let i = 0; i < groundRayOffsets.length; i++) {
+    for (let i = 0; i < groundRays.length; i++) {
       const ray = new Ray(Vector3.Zero(), Vector3.Down());
       const rayHelper = new RayHelper(ray);
 
@@ -359,16 +409,12 @@ class PlayerController {
         this.player,
         new Vector3(0, -1, 0),
         new Vector3(
-          groundRayOffsets[i].x,
+          groundRays[i].x,
           -this.hitBoxHeight / 2 + 0.5,
-          groundRayOffsets[i].z
+          groundRays[i].z
         ),
         1
       );
-
-      if (this.debug) {
-        rayHelper.show(this.scene, new Color3(0, 0.5, 1));
-      }
 
       this.groundRays.push([ray, rayHelper, new PhysicsRaycastResult()]);
     }
@@ -377,7 +423,7 @@ class PlayerController {
   private setPlayerSounds() {
     this.sounds = {
       walking: new Sound(
-        "wallking_sound",
+        "walking_sound",
         "/sounds/walking.wav",
         this.scene,
         null,
@@ -390,33 +436,43 @@ class PlayerController {
   }
 
   private setKeysObserver() {
-    this.playerKeys = {
-      up: "KeyW",
-      down: "KeyS",
-      left: "KeyA",
-      right: "KeyD",
-      jumping: "Space",
-      running: "ShiftLeft",
-    };
-
     this.scene.actionManager = new ActionManager();
+
+    // For key down events
     this.scene.actionManager.registerAction(
       new ExecuteCodeAction(ActionManager.OnKeyDownTrigger, (evt) => {
         this.inputMap[evt.sourceEvent.code] = true;
-        // console.log("key down", evt.sourceEvent.code);
+
+        // Handle grabbing on first G press
+        if (
+          evt.sourceEvent.code === this.playerKeys.grab &&
+          !this.grabbedObject
+        ) {
+          this.tryGrabObject();
+        }
       })
     );
+
+    // For key up events
     this.scene.actionManager.registerAction(
       new ExecuteCodeAction(ActionManager.OnKeyUpTrigger, (evt) => {
         this.inputMap[evt.sourceEvent.code] = false;
-        // console.log("key up", evt.sourceEvent.code);
+
+        // Handle throwing when G is released while holding an object
+        if (
+          evt.sourceEvent.code === this.playerKeys.grab &&
+          this.grabbedObject
+        ) {
+          this.releaseObject();
+        }
+
         this.inputKeyUp();
       })
     );
   }
 
   private inputKeyUp() {
-    if (this.isInSleep || this.isWakingUp) return;
+    if (this.playerState.isInSleep || this.playerState.isWakingUp) return;
     // if none of the movement keys are pressed
     // console.log("inputKeyUp ", this.inputMap);
     if (
@@ -427,44 +483,39 @@ class PlayerController {
     ) {
       // console.log(
       //   "Not moving, in the air ? ->" +
-      //     this.inAirState.hasTask +
+      //     this.playerState.jump.airState.jumpTask +
       //     " on step ? ->" +
-      //     this.onStepState.task
+      //     this.playerState.isOnStep
       // );
-      this.isMoving = false;
+      this.playerState.isMoving = false;
       this.sounds.walking.pause(); // stop walking sound maybe put somewhere else
 
       // if not in the air => play the idle animation
-      if (!this.inAirState.hasTask) {
+      if (!this.playerState.jump.airState.jumpTask) {
         // console.log("Not in this air and not moving ");
         this.onAnimWeight(AnimationKey.Idle);
-        // this.velocity.y = -GRAVITY; // apply gravity
       } else {
         // check if ground raycast detects the ground
-        if (this.onGroundRaycast.hasHit) {
+        if (this.playerState.isOnGround) {
           // console.log("touching ground but in the air... ");
-          this.inAirState.hasTask = false;
-          this.inAirState.jump = false;
-          this.inAirState.fall = false;
+          this.playerState.jump.airState.jumpTask = false;
+          this.playerState.jump.airState.jump = false;
+          this.playerState.jump.airState.fall = false;
           // this.velocity.y = -GRAVITY;
-          this.isMoving = true; // to see if this unbloc the player (apparently yes we are not stuck under objects anymore)
+          this.playerState.isMoving = true; // to see if this unbloc the player (apparently yes we are not stuck under objects anymore)
           this.onAnimWeight(AnimationKey.Idle);
         }
       }
 
       // if on the steps and not moving => clear the task
-      if (this.onStepState.task) {
+      if (this.playerState.step.stepTask) {
         // console.log("Not on step and not moving ...");
-        this.onStepState.task = false;
-        // this.speed = 1;
-        // this.velocity.y = -GRAVITY; // apply gravity
+        this.playerState.step.stepTask = false;
       }
-      // this.velocity.x = 0;
-      // this.velocity.z = 0;
     }
 
     if (!this.inputMap[this.playerKeys.running]) {
-      this.runningState.isRunning = false;
+      this.playerState.isRunning = false;
     }
   }
 
@@ -473,10 +524,12 @@ class PlayerController {
 
     // if the current anim is AnimationKey.StandingUp we should way for it to finish before playing the other animation
     if (this.curAnimParam.anim === AnimationKey.StandingUp) {
-      if (this.animationGroups[this.curAnimParam.anim].isPlaying) {
+      if (this.playerAnimationGroups[this.curAnimParam.anim].isPlaying) {
+        console.log("Waiting for standing up animation to finish...");
         return;
       } else {
-        this.isWakingUp = false;
+        console.log("Standing up animation finished.");
+        this.playerState.isWakingUp = false;
         this.onAnimWeight(AnimationKey.Idle);
       }
     }
@@ -490,7 +543,7 @@ class PlayerController {
       );
 
       // Get the current animation from the animationGroups array using the index from curAnimParam
-      const anim = this.animationGroups[this.curAnimParam.anim];
+      const anim = this.playerAnimationGroups[this.curAnimParam.anim];
 
       // Set the weight of the current animation using the updated weight value
       anim.setWeightForAllAnimatables(this.curAnimParam.weight);
@@ -506,14 +559,14 @@ class PlayerController {
       );
 
       // Get the previous animation from the animationGroups array using the index from oldAnimParam
-      const anim = this.animationGroups[this.oldAnimParam.anim];
+      const anim = this.playerAnimationGroups[this.oldAnimParam.anim];
 
       // Set the weight of the previous animation using the updated weight value
       anim.setWeightForAllAnimatables(this.oldAnimParam.weight);
     }
 
     // ensures all other animations are paused
-    this.animationGroups?.forEach((ani, key) => {
+    this.playerAnimationGroups?.forEach((ani, key) => {
       if (key !== this.oldAnimParam.anim && key !== this.curAnimParam.anim) {
         ani.setWeightForAllAnimatables(0);
       }
@@ -521,88 +574,42 @@ class PlayerController {
   }
 
   private onCollision = async (event: IPhysicsCollisionEvent) => {
-    // console.log("onCollision", event);
-
+    // ...
+    // Show the edges of the collided mesh for debugging
     // if (this.debug) {
     //   // Get the collided mesh from the physics body
     //   const collidedMesh = event?.collidedAgainst?.transformNode as Mesh;
 
     //   if (collidedMesh) {
-    //     console.log("Collision with", collidedMesh.name);
+    //     // console.log("Collision with", collidedMesh.name);
 
-    //     // Create a highlight layer if it doesn't exist
-    //     if (!this.highlightLayer) {
-    //       this.highlightLayer = new HighlightLayer(
-    //         "highlightLayer",
-    //         this.scene
-    //       );
-    //     }
+    //     // Create an EdgesRenderer on the collided mesh
+    //     const edgesRenderer = collidedMesh.enableEdgesRendering();
 
-    //     // Add the mesh to the highlight layer (red overlay)
-    //     this.highlightLayer.addMesh(collidedMesh, Color3.Red());
+    //     edgesRenderer.edgesColor = new Color4(1, 0, 0, 1);
+    //     collidedMesh.edgesWidth = 4.0;
 
-    //     // Remove the highlight effect after 1 second
+    //     // disable edges after 1 second
     //     setTimeout(() => {
-    //       this.highlightLayer?.removeMesh(collidedMesh);
+    //       collidedMesh.disableEdgesRendering();
     //     }, 1000);
     //   }
     // }
-
-    // Show the edges of the collided mesh for debugging
-    if (this.debug) {
-      // Get the collided mesh from the physics body
-      const collidedMesh = event?.collidedAgainst?.transformNode as Mesh;
-
-      if (collidedMesh) {
-        // console.log("Collision with", collidedMesh.name);
-
-        // Create an EdgesRenderer on the collided mesh
-        const edgesRenderer = collidedMesh.enableEdgesRendering();
-
-        edgesRenderer.edgesColor = new Color4(1, 0, 0, 1);
-        collidedMesh.edgesWidth = 4.0;
-
-        // disable edges after 1 second
-        setTimeout(() => {
-          collidedMesh.disableEdgesRendering();
-        }, 1000);
-      }
-    }
 
     // console.log("collision - player position", this.player.position);
     // console.log("collision point", event?.point);
     if (
       event.type === PhysicsEventType.COLLISION_STARTED && // collision started
-      this.inAirState.hasTask && // player is jumping
+      this.playerState.jump.airState.jumpTask &&
       (event?.point?._y || event?.point?.y || 0) >
         this.player.position.y + this.hitBoxHeight / 2.4 // collision point is above the player (we should do /2 but /2.3 so we take a little margin precaution to be sure)
     ) {
       // console.log("hit the head");
       // end jump since landed or hit something
-      this.inAirState.hasTask = false;
-      this.inAirState.jump = false;
-      this.inAirState.fall = true; // now falling
-      // this.velocity.y = -GRAVITY; // reset the velocity to gravity
-
-      // if doesn't touch the ground make impulse down
-      // if (!this.isOnGround()) {
-      //   this.moveDirection.y = -this.jumpImpulse * 2; // to ensure the player falls down
-      // }
+      this.playerState.jump.airState.jumpTask = false;
+      this.playerState.jump.airState.jump = false;
+      this.playerState.jump.airState.fall = true; // now falling
     }
-
-    // if the player lands on an object => stop falling
-    // if (
-    //   event.type === PhysicsEventType.COLLISION_STARTED && // collision started
-    //   this.inAirState.fall //&& // player is falling
-    //   // (event?.point?._y || event?.point?.y || 0) <
-    //   //   this.player.position.y - this.hitBoxHeight / 2 // collision point is below the player
-    // ) {
-    //   console.log("landed on an object");
-    //   this.inAirState.fall = false;
-    //   this.inAirState.hasTask = false;
-    //   this.inAirState.jump = false;
-    //   // this.velocity.y = 0; // stop falling
-    // }
 
     // Check if the player has hit a win mesh
     if (
@@ -643,43 +650,35 @@ class PlayerController {
     }
   };
 
-  // Stops all player movement by clearing inputs and velocity
   private stopPlayerMovement(): void {
-    // Clear all input states
     Object.keys(this.inputMap).forEach((key) => {
       this.inputMap[key] = false;
     });
 
-    // Reset movement flags
-    this.isMoving = false;
-    this.inAirState.jump = false;
-    this.inAirState.fall = false;
-    this.inAirState.hasTask = false;
-    this.onStepState.task = false;
+    this.playerState.isMoving = false;
+    this.playerState.jump.airState.jump = false;
+    this.playerState.jump.airState.fall = false;
+    this.playerState.jump.airState.jumpTask = false;
+    this.playerState.step.stepTask = false;
 
-    // Reset velocity and movement
     this.velocity.setAll(0);
     this.moveDirection.setAll(0);
 
-    // Apply zero velocity to physics body for immediate stop
     if (this.player?.physicsBody) {
       this.player.physicsBody.setLinearVelocity(Vector3.Zero());
       this.player.physicsBody.setAngularVelocity(Vector3.Zero());
     }
 
-    // Stop walking sound
     if (this.sounds?.walking.isPlaying) {
       this.sounds.walking.stop();
     }
 
-    // Switch to idle animation
     this.onAnimWeight(AnimationKey.Idle);
 
-    // reset jump stamina
-    this.jumpStamina.current = this.jumpStamina.max;
-    this.jumpStamina.canJump = true;
-    this.jumpStamina.regenTimer = 0;
-    this.inAirState.limit = this.inAirState.defaultLimit; // Reset jump limit
+    this.playerState.jump.stamina.current = this.maxNbJumps;
+    this.playerState.jump.stamina.canJump = true;
+    this.playerState.jump.stamina.regenTimer = 0;
+    this.playerState.jump.airState.limit = this.maxJumpHeight;
   }
 
   public resetWinConditions(): void {
@@ -695,12 +694,7 @@ class PlayerController {
     }
   }
 
-  // Checks if any ground ray detects ground
   private isOnGround(): boolean {
-    if (this.onGroundRaycast.hasHit) {
-      return true;
-    }
-
     for (let i = 0; i < this.groundRays.length; i++) {
       if (this.groundRays[i][2].hasHit) {
         return true;
@@ -725,172 +719,96 @@ class PlayerController {
     return hasHit;
   }
 
-  private movePlayer(delta: number) {
-    // Reset movement direction each frame
+  // private checkGroundCollision(): [
+  //   Ray,
+  //   RayHelper | null,
+  //   PhysicsRaycastResult
+  // ][] {
+  //   let hasHit: [Ray, RayHelper | null, PhysicsRaycastResult][] = [];
+  //   for (let i = 0; i < this.groundRays.length; i++) {
+  //     const [ray, rayHelper, res] = this.groundRays[i];
+  //     if (res.hasHit) {
+  //       hasHit.push([ray, rayHelper, res]);
+  //     }
+  //   }
+  //   return hasHit;
+  // }
 
-    // Check if the player is on a staircase and not jumping, and if the player is below the staircase height
+  private movePlayer(delta: number) {
     if (
-      this.onStepState.task && // supposed near a step
-      !this.inAirState.jump && // not jumping
-      !this.inAirState.fall && // not falling
+      this.playerState.step.stepTask &&
+      !this.playerState.jump.airState.jump &&
+      !this.playerState.jump.airState.fall &&
       this.player.position.y - this.hitBoxHeight / 2 <
-        this.onStepState.height &&
-      this.isMoving
+        this.playerState.step.stepHeight &&
+      this.playerState.isMoving
     ) {
-      // this.velocity.y = GRAVITY; // apply upward force in order to climb the step
-      // this.moveDirection.y = this.gravityImpulse;
       this.moveDirection.y = this.stepImpulse;
     }
 
-    // If the player has reached the top of the step=>stop the upward motion
     if (
-      // this.velocity.y && // moving upward
-      this.onStepState.task && // on the step
-      !(this.checkStepCollision().length > 0) && // no step collision detected from the raycast
+      this.playerState.step.stepTask &&
+      !(this.checkStepCollision().length > 0) &&
       this.player.position.y - this.hitBoxHeight / 2 >=
-        this.onStepState.height && // passed the step
-      !this.inAirState.jump // Not already jumping (to avoid conflict with jump new adjustment)
+        this.playerState.step.stepHeight &&
+      !this.playerState.jump.airState.jump
     ) {
-      // this.velocity.y = 0;
-      this.onStepState.task = false; // no longer on a step
+      this.playerState.step.stepTask = false;
     }
 
-    if (!this.inAirState.jump && !this.isOnGround()) {
+    if (!this.playerState.jump.airState.jump && !this.isOnGround()) {
       this.moveDirection.y = -this.jumpImpulse / 1.25;
     }
 
-    // // if raycast detects the ground and jump is active => stop the jump
-    // if (this.onGroundRaycast.hasHit && this.inAirState.jump) {
-    //   console.log("on the ground and jump active => stop the jump");
-    //   this.inAirState.jump = false;
-    //   this.inAirState.hasTask = false;
-    //   // this.velocity.y = -GRAVITY; // Apply gravity
-    //   this.moveDirection.y = -this.jumpImpulse; // Apply gravity
-    // }
-
-    // Check if the player is jumping but isn't off the ground yet
-    // Check if the player is jumping
-    if (
-      this.inAirState.jump //&& //jumping
-      // !this.inAirState.hasTask && // no jump task yet
-      // this.onGroundRaycast.hasHit // if foot raycast detects that the player is on a ground
-    ) {
-      // console.log(
-      //   "player is jumping but not off the ground yet : starting jump by applying upward force"
-      // );
-      // console.log(this.inAirState);
-      this.inAirState.hasTask = true; // flag started to jump
-      // this.inAirState.startedAtTime = Date.now(); // record the time the jump started
-      // this.velocity.y = GRAVITY; // Apply upward force
-      this.moveDirection.y = this.jumpImpulse; //* 10; // Apply upward jump impulse force
-      // console.log(this.moveDirection, "after jump impulse");
+    if (this.playerState.jump.airState.jump) {
+      this.playerState.jump.airState.jumpTask = true;
+      this.moveDirection.y = this.jumpImpulse;
     }
 
-    // If the player is not on the ground and has exceeded the jump height limit => start falling
     if (
-      !this.onGroundRaycast.hasHit && // If foot raycast doesn't detect any ground beneath
+      !this.playerState.isOnGround &&
       this.player.position.y >
-        this.inAirState.startHeight + this.inAirState.limit && // if player has exceeded jump height limit
-      this.inAirState.jump // player still jumping
+        this.playerState.jump.airState.startHeight +
+          this.playerState.jump.airState.limit &&
+      this.playerState.jump.airState.jump
     ) {
-      // console.log("jump limit reache => start falling");
-      this.inAirState.jump = false; // end the jump
-      this.inAirState.fall = true; // mark as falling
-      // this.velocity.y = -GRAVITY; // Apply gravity to fall
-      this.moveDirection.y = -this.jumpImpulse / 1.25; /// 2; // "to fall faster than gravity"
+      this.playerState.jump.airState.jump = false;
+      this.playerState.jump.airState.fall = true;
+      this.moveDirection.y = -this.jumpImpulse / 1.25;
     }
 
-    // if the player is falling and the foot raycast doesn't detect any ground => apply gravity
     if (
-      !this.onGroundRaycast.hasHit &&
-      this.inAirState.fall &&
-      !this.inAirState.jump
+      !this.playerState.isOnGround &&
+      this.playerState.jump.airState.fall &&
+      !this.playerState.jump.airState.jump
     ) {
-      // console.log("falling and no ground detected => apply gravity");
-      // this.velocity.y = -GRAVITY; // Apply gravity to fall
-      // console.log("falling and no ground detected");
-      this.moveDirection.y = -this.jumpImpulse / 1.25; /// 2; // "To fall faster than gravity"
+      this.moveDirection.y = -this.jumpImpulse / 1.25;
     }
 
-    // check if the player is on the ground or on an object and stop the velocity // THIS BREAK EVERYTHING WHAN ON A SLOPE DOESN4T
-    // if (
-    //   this.onGroundRaycast.hasHit &&
-    //   // (!hitStepRays || hitStepRays.length === 0) && // not on a step
-    //   !this.inAirState.jump &&
-    //   !this.inAirState.fall &&
-    //   !this.onStepState.task
-    // ) {
-    //   this.velocity.y = 0; // Stop downward movement since the player is on smtg
-    // }
+    if (this.playerState.isMoving) {
+      const dir = this.lookAtBox();
+      let moveX = dir.x * this.impulseStrength * delta * this.playerSpeed;
+      let moveZ = dir.z * this.impulseStrength * delta * this.playerSpeed;
 
-    //if is moving and is not jumping
-    // if (this.isMoving && !this.inAirState.jump) {
-    //if is moving
-    if (this.isMoving) {
-      const dir = this.lookAtBox(); // get direction player is facing
-      // adjust movment based on dir and delta time
-      // let dd_x = dir.x * delta * this.speed;
-      // let dd_z = dir.z * delta * this.speed;
-      let moveX = dir.x * this.impulseStrength * delta * this.speed;
-      let moveZ = dir.z * this.impulseStrength * delta * this.speed;
-
-      // Reduce movement during jumps and falls
-      if (this.inAirState.jump || this.inAirState.fall) {
-        moveX *= 0.8; // moves 20% slower in the air
+      if (
+        this.playerState.jump.airState.jump ||
+        this.playerState.jump.airState.fall
+      ) {
+        moveX *= 0.8;
         moveZ *= 0.8;
       }
 
-      // NO need to adjust because the player
-      // // if moving in diagonal => adjust the speed by sqrt(2)
-      // if (
-      //   (this.playerDirection === PlayerDirection.LeftForward ||
-      //     this.playerDirection === PlayerDirection.RightForward ||
-      //     this.playerDirection === PlayerDirection.RightBackward ||
-      //     this.playerDirection === PlayerDirection.LeftBackward) &&
-      //   this.isMoving
-      // ) {
-      //   dd_x /= Math.sqrt(2);
-      //   dd_z /= Math.sqrt(2);
-      // }
-
-      // apply the movement to the player
-      // this.velocity.x = dd_x;
-      // this.velocity.z = dd_z;
       this.moveDirection.x = moveX;
       this.moveDirection.z = moveZ;
 
-      // if the walking sound is not playing => play it
       if (!this.sounds.walking.isPlaying) {
         this.sounds.walking.play();
       }
     } else {
-      // probably not doing anything => stop moving
-      // this.velocity.x = 0;
-      // this.velocity.z = 0;
       this.moveDirection.x = 0;
       this.moveDirection.z = 0;
-
-      // TO REMOVE ?
-      // if (
-      //   this.onGroundRaycast.hasHit &&
-      //   !this.inAirState.jump &&
-      //   !this.inAirState.fall &&
-      //   !this.onStepState.task
-      // ) {
-      //   if (this.aggregatePlayer?.body) {
-      //     const currentVelocity = this.aggregatePlayer.body.getLinearVelocity();
-      //     // Keep vertical velocity but zero out horizontal
-      //     this.aggregatePlayer.body.setLinearVelocity(
-      //       new Vector3(0, currentVelocity.y, 0)
-      //     );
-      //   }
-      // }
     }
 
-    // move the player based on the velocity
-    // this.player?.physicsBody?.setLinearVelocity(this.velocity);
-    // Apply impulses instead of directly setting velocity
-    // console.log("moveDirection", this.moveDirection);
     if (this.player?.physicsBody) {
       this.player.physicsBody.applyImpulse(
         this.moveDirection,
@@ -899,9 +817,6 @@ class PlayerController {
     }
 
     if (this.velocity.y) {
-      // console.log("velocity", this.velocity);
-
-      // Apply the velocity to the player
       this.player?.physicsBody?.setLinearVelocity(this.velocity);
     }
 
@@ -909,280 +824,229 @@ class PlayerController {
   }
 
   updatePlayer(deltaTime: number): void {
-    // Ensure that the scene and player are available
     if (!this.scene || !this.player) return;
 
-    // update jump stamina regen
-    this.updateJumpStamina(deltaTime);
-
-    // ensure laying anim is playing if the player is sleeping
-    if (this.isInSleep && !this.isWakingUp) {
+    // if the player is in sleep mode we don't update the player
+    if (this.playerState.isInSleep && !this.playerState.isWakingUp) {
       this.onAnimWeight(AnimationKey.Laying);
       return;
     }
 
-    // if the player is waking up => play the standing up animation
-    if (this.isWakingUp) {
+    // if the player is waking up we set the animation
+    // (and once finished isWakingUp should be set to false in onBeforeAnimations )
+    if (this.playerState.isWakingUp) {
       this.onAnimWeight(AnimationKey.StandingUp);
-      this.isWakingUp = false;
-      return;
+      this.playerState.isWakingUp = false; // WE FORCE TO CORRECT IN ORDER FOR THE STANDING UP ANIM TO BE PLAYED PROPERLY      return;
     }
 
-    // Cast a ray to check if the player is on the ground
-    const start = this.floorRay.origin.clone();
-    const end = start.add(this.floorRay.direction.scale(this.floorRay.length));
-    this.physicsEngine?.raycastToRef(start, end, this.onGroundRaycast);
+    // update the rays to check for ground and steps
+    this.updateRays();
 
-    // Cast rays for all ground rays
-    for (let i = 0; i < this.groundRays.length; i++) {
-      const [ray, rayHelper, res] = this.groundRays[i];
-      const g_start = ray.origin.clone();
-      const g_end = g_start.add(ray.direction.scale(ray.length));
-      this.physicsEngine?.raycastToRef(g_start, g_end, res);
-    }
-
-    // Raycast for steps
-    for (let i = 0; i < this.stepRays.length; i++) {
-      const [ray, rayHelper, res] = this.stepRays[i];
-      const s_start = ray.origin.clone();
-      const s_end = s_start.add(ray.direction.scale(ray.length));
-      this.physicsEngine?.raycastToRef(s_start, s_end, res);
-    }
-    // const s_start = this.stepRay.origin.clone();
-    // const s_end = s_start.add(
-    //   this.stepRay.direction.scale(this.stepRay.length)
-    // );
-    // this.physicsEngine.raycastToRef(s_start, s_end, this.onStepRaycast);
-
+    // set the step task if the player is on a step
     const hitStepRays = this.checkStepCollision();
-
-    // for debugging
-    // show the floor ray (if the player is on the ground)
-    if (this.debug && this.isOnGround()) {
-      this.floorRayHelper.show(this.scene, new Color3(0, 1, 0));
-
-      // Highlight any ground ray that hit something
-      for (let i = 0; i < this.groundRays.length; i++) {
-        const [ray, rayHelper, res] = this.groundRays[i];
-        if (res.hasHit && rayHelper) {
-          rayHelper.show(this.scene, new Color3(0, 1, 0.5));
-        } else if (rayHelper) {
-          rayHelper.hide();
-        }
-      }
-    } else {
-      this.floorRayHelper.hide();
-      if (!this.debug) {
-        this.groundRays.forEach((ray) => {
-          if (ray[1]) ray[1].hide();
-        });
-      }
+    if (hitStepRays.length > 0) {
+      this.playerState.step.stepTask = true;
+      this.playerState.step.stepHeight = hitStepRays[0][2].hitPointWorld.y;
     }
 
-    // check if player is moving based on inputMap and update playerDirection
-    this.checkMovementKeys();
+    // set the player isOnGround state
+    this.playerState.isOnGround = this.isOnGround();
+    // const hitGroundRays= this.checkGroundCollision()
 
-    // If any movement keys are pressed => set the moving state and play the running animation
+    // update the player jump stamina base on the time passed
+    this.updateJumpStamina(deltaTime);
+
+    // update the player direction based on the input movements keys
+    this.updatePlayerDirection();
+
     if (
       this.inputMap[this.playerKeys.up] ||
       this.inputMap[this.playerKeys.down] ||
       this.inputMap[this.playerKeys.left] ||
       this.inputMap[this.playerKeys.right]
     ) {
-      this.isMoving = true;
+      this.playerState.isMoving = true;
 
-      //if running pressed
       if (this.inputMap[this.playerKeys.running]) {
-        this.runningState.isRunning = true;
+        this.playerState.isRunning = true;
         this.impulseStrength = this.baseImpulseStrength * 1.5;
       } else {
-        this.runningState.isRunning = false;
+        this.playerState.isRunning = false;
         this.impulseStrength = this.baseImpulseStrength;
       }
 
-      // If not jumping and on the ground => play the running animation
-      if (!this.inAirState.jump && this.isOnGround()) {
+      if (!this.playerState.jump.airState.jump && this.playerState.isOnGround) {
         this.onAnimWeight(AnimationKey.Running);
       }
-
-      // If on the steps and moving => set the task to go up the step
-      if (hitStepRays.length > 0) {
-        this.onStepState.task = true;
-        this.onStepState.height = hitStepRays[0][2].hitPointWorld.y; // normally there should only be one (else we still take the first one)
-      }
     } else {
-      // If no movement keys are pressed, stop the player
-
-      this.isMoving = false;
-
+      this.playerState.isMoving = false;
       this.impulseStrength = this.baseImpulseStrength;
-      // decrease the velocity by half
-      // decrease the velocity by half
-      // this.velocity.x /= 2;
-      // this.velocity.z /= 2;
-      // this.velocity.x = 0;
-      // this.velocity.z = 0;
       this.sounds.walking.pause();
     }
 
-    // Handle jumping when the Space key is pressed
     if (
       this.inputMap[this.playerKeys.jumping] &&
-      !this.inAirState.jump && // not already jumping
-      !this.inAirState.hasTask && // no jump task
-      this.isOnGround() && // Use new method instead of onGroundRaycast.hasHit
-      this.jumpStamina.current > 0 // Check if player has jump stamina
+      !this.playerState.jump.airState.jump &&
+      !this.playerState.jump.airState.jumpTask &&
+      this.playerState.isOnGround &&
+      this.playerState.jump.stamina.current > 0
     ) {
-      // Calculate jump height based on stamina
-      // Full stamina = full height, less stamina = less height
       const jumpHeightPercentage =
-        this.jumpStamina.current / this.jumpStamina.max;
-      this.inAirState.limit =
-        this.inAirState.defaultLimit * jumpHeightPercentage;
+        this.playerState.jump.stamina.current / this.maxNbJumps;
+      this.playerState.jump.airState.limit =
+        this.maxJumpHeight * jumpHeightPercentage;
 
-      // console.log(
-      //   `DEBUG jump height set to: ${this.inAirState.limit.toFixed(2)} (${(
-      //     jumpHeightPercentage * 100
-      //   ).toFixed(0)}% of max)`
-      // );
+      this.playerState.jump.stamina.current--; // decrement the jump stamina of 1
 
-      // decrease jump stamina
-      this.jumpStamina.current--;
-
-      // console.log(
-      //   `DEBUG jump stamina REDUCED: ${this.jumpStamina.current}/${this.jumpStamina.max}`
-      // );
-
-      // if out of jumps mark as unable to jump
-      if (this.jumpStamina.current <= 0) {
-        this.jumpStamina.canJump = false;
-
-        // console.warn("DEBUG player out of jump stamina");
+      if (this.playerState.jump.stamina.current <= 0) {
+        this.playerState.jump.stamina.canJump = false;
       }
 
-      // console.log("jump");
-      this.inAirState.jump = true;
-      this.inAirState.startHeight = this.player.position.y; // record the height from which the jump starts (for limit)
-      // this.velocity.y = GRAVITY; // Apply upward force
-      this.onAnimWeight(AnimationKey.Falling); // Start the jump animation (to change to Jumping we will se but for the moment the anim is not right )
-      // see if we keep the anim here
+      this.playerState.jump.airState.jump = true;
+      this.playerState.jump.airState.startHeight = this.player.position.y;
+      this.onAnimWeight(AnimationKey.Falling);
     } else if (
       this.inputMap[this.playerKeys.jumping] &&
-      !this.inAirState.jump &&
-      !this.inAirState.hasTask &&
-      this.isOnGround() &&
-      this.jumpStamina.current <= 0
+      !this.playerState.jump.airState.jump &&
+      !this.playerState.jump.airState.jumpTask &&
+      this.playerState.isOnGround &&
+      this.playerState.jump.stamina.current <= 0
     ) {
-      // console.log("DEBUG attempted jump but no stamina left");
-      // maybe we could add an anim tired here ? TO DO ?
     }
 
-    // Handle end of falling when the player hits the ground
-    if (this.isOnGround() && this.inAirState.fall && !this.inAirState.jump) {
-      // console.log("just landed");
-      this.inAirState.fall = false;
-      this.inAirState.hasTask = false; // Reset jump task
-      this.onStepState.task = false; // Reset step task TO TRY????????????????????????????????????????????????????????????????????????????????????,
-      // this.velocity.y = -GRAVITY; // Apply gravity
-      if (this.isMoving) {
+    if (
+      this.playerState.isOnGround &&
+      this.playerState.jump.airState.fall &&
+      !this.playerState.jump.airState.jump
+    ) {
+      this.playerState.jump.airState.fall = false;
+      this.playerState.jump.airState.jumpTask = false;
+      this.playerState.step.stepTask = false;
+      if (this.playerState.isMoving) {
         this.onAnimWeight(AnimationKey.Running);
       } else {
         this.onAnimWeight(AnimationKey.Idle);
       }
     }
 
-    // Handle the state after releasing the space key
     if (
       this.inputMap[this.playerKeys.jumping] !== undefined &&
       !this.inputMap[this.playerKeys.jumping] &&
-      this.isOnGround() &&
-      this.inAirState.hasTask
+      this.playerState.isOnGround &&
+      this.playerState.jump.airState.jumpTask
     ) {
-      // console.log("space key released & not in air anymore");
-      this.inAirState.hasTask = false; // clear the jump task
-      // this.velocity.y = -GRAVITY; // Apply gravity
+      this.playerState.jump.airState.jumpTask = false;
     }
 
-    // if the player is not jumping and is falling (no ground detected)
-    if (!this.inAirState.jump && !this.isOnGround()) {
-      // console.log("free fall");
-      this.inAirState.fall = true; // mark as falling
-      this.inAirState.jump = false; // end jump
-      // this.velocity.y = -GRAVITY; // Apply gravity
-      // this.onAnimWeight(AnimationKey.Idle);
+    if (!this.playerState.jump.airState.jump && !this.playerState.isOnGround) {
+      this.playerState.jump.airState.fall = true;
+      this.playerState.jump.airState.jump = false;
       this.onAnimWeight(AnimationKey.Falling);
     }
 
-    // Handle landing from falling to idle or running
     if (
-      !this.inAirState.jump &&
-      !this.inAirState.hasTask &&
-      this.isOnGround() &&
+      !this.playerState.jump.airState.jump &&
+      !this.playerState.jump.airState.jumpTask &&
+      this.playerState.isOnGround &&
       this.curAnimParam.anim !== AnimationKey.Idle &&
-      !this.isMoving
+      !this.playerState.isMoving
     ) {
-      if (this.isMoving) {
+      if (this.playerState.isMoving) {
         this.onAnimWeight(AnimationKey.Running);
       } else {
         this.onAnimWeight(AnimationKey.Idle);
       }
     }
 
-    // if player is climbing a step
-    // if (this.onStepState.task) {
-    //   // this.onAnimWeight(AnimationKey.Climbing);
-    //   console.log("climbing");
-    //   this.speed = Math.max(0.1, this.speed - 0.01);
+    // Check for throw on G key release (safety check)
+    // if (this.grabbedObject && !this.inputMap[this.playerKeys.grab]) {
+    //   this.throwObject();
     // }
 
-    // if (!this.onStepState.task && this.onStepRaycast.hasHit) {
-    //   this.speed = 1;
-    // }
-
-    // update player
     this.movePlayer(deltaTime);
   }
 
-  // Add a method to update jump stamina over time
   private updateJumpStamina(deltaTime: number): void {
-    // Only regenerate stamina when on the ground
-    if (!this.isOnGround()) {
+    if (!this.playerState.isOnGround) {
       return;
     }
 
-    // If already at max stamina nothing to do
-    if (this.jumpStamina.current >= this.jumpStamina.max) {
-      this.jumpStamina.current = this.jumpStamina.max;
-      this.jumpStamina.canJump = true;
-      this.jumpStamina.regenTimer = 0;
+    if (this.playerState.jump.stamina.current >= this.maxNbJumps) {
+      this.playerState.jump.stamina.current = this.maxNbJumps;
+      this.playerState.jump.stamina.canJump = true;
+      this.playerState.jump.stamina.regenTimer = 0;
       return;
     }
 
-    // Increment the regeneration timer
-    this.jumpStamina.regenTimer += deltaTime;
+    this.playerState.jump.stamina.regenTimer += deltaTime;
 
-    // If enough time has passed
-    if (this.jumpStamina.regenTimer >= this.jumpStamina.regenInterval) {
-      console.log("DEBUG timer : ", this.jumpStamina.regenTimer);
+    if (this.playerState.jump.stamina.regenTimer >= this.jumpRegenInterval) {
+      // console.log("DEBUG timer : ", this.jumpStamina.regenTimer);
+      this.playerState.jump.stamina.current++; // increment the jump stamina by 1
+      this.playerState.jump.stamina.regenTimer = 0; // reset the timer
 
-      // Add one jump stamina point
-      this.jumpStamina.current++;
-
-      // Reset timer
-      this.jumpStamina.regenTimer = 0;
-
-      // if we have at least one jump available, player can jump
-      if (this.jumpStamina.current > 0) {
-        this.jumpStamina.canJump = true;
+      // if the stamina is greater than 0 we can jump
+      if (this.playerState.jump.stamina.current > 0) {
+        this.playerState.jump.stamina.canJump = true;
       }
-
-      // console.warn(
-      //   `DEBUG jump stamina regenerated: ${this.jumpStamina.current}/${this.jumpStamina.max}`
-      // );
     }
   }
 
-  // Animation state tracking
+  private updateRays() {
+    // raycast the ground rays
+    for (let i = 0; i < this.groundRays.length; i++) {
+      const [ray, rayHelper, res] = this.groundRays[i];
+      const start = ray.origin.clone();
+      const end = start.add(ray.direction.scale(ray.length));
+      this.physicsEngine?.raycastToRef(start, end, res);
+    }
+
+    // raycast the step rays
+    for (let i = 0; i < this.stepRays.length; i++) {
+      const [ray, rayHelper, res] = this.stepRays[i];
+      const start = ray.origin.clone();
+      const end = start.add(ray.direction.scale(ray.length));
+      this.physicsEngine?.raycastToRef(start, end, res);
+    }
+
+    // Color the rays based on whether they hit the ground or a step if in debug mode
+    if (this.debug) {
+      // if (this.debug && this.isOnGround()) {
+      // color the ground rays based on whether they hit the ground
+      for (let i = 0; i < this.groundRays.length; i++) {
+        const [ray, rayHelper, res] = this.groundRays[i];
+        if (res.hasHit && rayHelper) {
+          rayHelper.show(this.scene, new Color3(1, 0.5, 0)); // orange color when on ground
+        } else if (rayHelper) {
+          // rayHelper.hide();
+          rayHelper.show(this.scene, new Color3(0, 1, 0.5)); // green color when not on ground
+        }
+      }
+
+      // color the step rays based on whether they hit a step
+      for (let i = 0; i < this.stepRays.length; i++) {
+        const [ray, rayHelper, res] = this.stepRays[i];
+        if (res.hasHit && rayHelper) {
+          rayHelper.show(this.scene, new Color3(1, 0, 0)); // red color when on step
+        } else if (rayHelper) {
+          // rayHelper.hide();
+          rayHelper.show(this.scene, new Color3(0, 0, 1)); // blue color when not on step
+        }
+      }
+    } else {
+      // see if we keep as the rays are not shown in the first place when not in debug mode
+      if (!this.debug) {
+        // Hide the ray helpers when not in debug mode
+        this.groundRays.forEach((ray) => {
+          if (ray[1]) ray[1].hide();
+        });
+        this.stepRays.forEach((ray) => {
+          if (ray[1]) ray[1].hide();
+        });
+      }
+    }
+  }
+
   private curAnimParam = {
     weight: 1,
     anim: AnimationKey.Idle,
@@ -1192,23 +1056,20 @@ class PlayerController {
     anim: AnimationKey.Running,
   };
 
-  // Handle animation weight transitions
   private onAnimWeight(animKey: number) {
-    if (animKey === this.curAnimParam.anim) return; // Skip if the current animation is already set
-    this.oldAnimParam.weight = 1; // set previous animation weight to full
-    this.oldAnimParam.anim = this.curAnimParam.anim; // set previous animation from current
-    this.curAnimParam.weight = 0; // reset current animation weight to zero
-    this.curAnimParam.anim = animKey; // set new animation
+    if (animKey === this.curAnimParam.anim) return;
+    this.oldAnimParam.weight = 1;
+    this.oldAnimParam.anim = this.curAnimParam.anim;
+    this.curAnimParam.weight = 0;
+    this.curAnimParam.anim = animKey;
   }
 
-  // Handle player movement and camera direction based on movement keys pressed
   private lookAtBox() {
     const mesh = this.boxHelper;
     const cameraDirection = this.camera?.getForwardRay().direction;
     if (!cameraDirection) return Vector3.Zero();
-    const d = new Vector3(cameraDirection.x, 0, cameraDirection.z); // no y bc only horizontal movement are taken into account
+    const d = new Vector3(cameraDirection.x, 0, cameraDirection.z);
 
-    // adjust player mesh orientation based on the player's movement direction
     switch (this.playerDirection) {
       case PlayerDirection.Forward:
         mesh.lookAt(mesh.position.add(d), 0, 0, 0);
@@ -1243,11 +1104,8 @@ class PlayerController {
         break;
     }
 
-    // Return the direction the player box helper is facing
     const dir = this.getBoxDirection();
     const rot = Quaternion.FromLookDirectionRH(dir, Vector3.Up());
-    // rotate the player mesh to the new direction
-    // smooth rotation using Slerp (Spherical Linear Interpolation) through Quaternion rotation
     const [mesheRoot] = this.player.getChildMeshes();
     mesheRoot.rotationQuaternion =
       mesheRoot.rotationQuaternion || Quaternion.Identity();
@@ -1257,10 +1115,49 @@ class PlayerController {
       0.1,
       mesheRoot.rotationQuaternion
     );
+
+    // Update the attachment point to match player's facing direction
+    if (this.frontGrabAttachmentPoint) {
+      // Get the player's current forward direction
+      const playerDirection = this.getBoxDirection().normalize();
+
+      // Position the attachment point in world space in front of the player
+      // First get the player's world position
+      const playerWorldPosition = this.player.position.clone();
+
+      // Calculate the desired attachment point position in world space
+      const attachmentWorldPosition = playerWorldPosition.add(
+        playerDirection
+          .scale(this.hitBoxRadius + 1.2) // Use player's forward direction
+          .add(new Vector3(0, 0.5, 0)) // Add vertical offset
+      );
+
+      // Update the attachment point's world position
+      this.frontGrabAttachmentPoint.setAbsolutePosition(
+        attachmentWorldPosition
+      );
+
+      // Make attachment point look in the same direction as player
+      if (!this.frontGrabAttachmentPoint.rotationQuaternion) {
+        this.frontGrabAttachmentPoint.rotationQuaternion =
+          Quaternion.Identity();
+      }
+      const attachmentRotation = Quaternion.FromLookDirectionRH(
+        playerDirection,
+        Vector3.Up()
+      );
+
+      // Use SlerpToRef for smooth rotation at the same speed as the player
+      Quaternion.SlerpToRef(
+        this.frontGrabAttachmentPoint.rotationQuaternion,
+        attachmentRotation,
+        0.1, // same interpolation factor used for the player
+        this.frontGrabAttachmentPoint.rotationQuaternion
+      );
+    }
     return dir;
   }
 
-  // get the direction the player helper box is facing based on its current rotation
   private getBoxDirection() {
     const forward = Vector3.TransformCoordinates(
       new Vector3(0, 0, 1),
@@ -1270,48 +1167,606 @@ class PlayerController {
     return direction;
   }
 
-  ///////////////////////////////
+  /**
+   * Attempts to grab a physics-enabled object in the vicinity in front of the player.
+   * Objects will move with the player until the grab key is released.
+   */
+  private tryGrabObject(): void {
+    if (this.grabbedObject) {
+      return; // Already holding an object
+    }
+
+    const playerPosition = this.player.position.clone();
+    const playerDirection = this.getBoxDirection().normalize();
+
+    // Get all physics bodies in the scene
+    const physicsEngine = this.scene.getPhysicsEngine();
+    if (!physicsEngine) {
+      console.warn("Physics engine is not initialized.");
+      return;
+    }
+
+    // Keep track of the closest valid object
+    let closestObject: {
+      distance: number;
+      mesh: Mesh;
+      body: any;
+      aggregate: PhysicsAggregate | null;
+    } | null = null;
+
+    // Get all meshes in the scene with physics
+    const physicsMeshes = this.scene.meshes.filter(
+      (mesh) =>
+        mesh.physicsBody &&
+        mesh !== this.player &&
+        mesh.physicsBody.getMotionType() === PhysicsMotionType.DYNAMIC
+    );
+
+    // Debug visualization sphere
+    let grabSphere: Mesh | null = null;
+    if (this.debug) {
+      grabSphere = MeshBuilder.CreateSphere(
+        "grabZone",
+        {
+          diameter: this.grabDistance * 2,
+        },
+        this.scene
+      );
+      grabSphere.position = playerPosition.clone();
+      grabSphere.material = new StandardMaterial("grabSphereMat", this.scene);
+      grabSphere.material.alpha = 0.2;
+      (grabSphere.material as StandardMaterial).diffuseColor = new Color3(
+        0.2,
+        0.6,
+        1
+      );
+      setTimeout(() => grabSphere?.dispose(), 1000);
+    }
+
+    for (const mesh of physicsMeshes) {
+      // Skip non meshes and the player itself
+      if (
+        !(mesh instanceof Mesh) ||
+        mesh === this.player ||
+        mesh === grabSphere
+      )
+        continue;
+
+      // Get mesh center position and size
+      const meshBoundingBox = mesh.getBoundingInfo().boundingBox;
+      const meshPosition = meshBoundingBox.centerWorld;
+      const meshExtents = meshBoundingBox.extendSize;
+      const meshRadius = Math.max(meshExtents.x, meshExtents.y, meshExtents.z);
+
+      // Calculate distance from player to object center
+      const distanceVector = meshPosition.subtract(playerPosition);
+      const distance = distanceVector.length();
+
+      // Check if any part of the object is within grab distance
+      if (distance - meshRadius > this.grabDistance) continue;
+
+      // Check if object is in front of the player
+      const normalizedDirection = distanceVector.normalize();
+      const dotProduct = Vector3.Dot(playerDirection, normalizedDirection);
+
+      // We want objects primarily in front of the player (within ~120 degree arc) / TO DO CHECK THIS
+      if (dotProduct < 0.5) continue; // cos(60°) ≈ 0.5
+
+      // Get the physics body
+      const body = mesh.physicsBody;
+      if (!body) continue;
+
+      // Check if object has appropriate mass
+      const massProps = body.getMassProperties();
+      if (
+        !massProps ||
+        typeof massProps.mass !== "number" ||
+        massProps.mass <= 0 ||
+        massProps.mass >= this.playerMass
+      ) {
+        continue;
+      }
+
+      // Update closest object if this one is closer
+      if (!closestObject || distance < closestObject.distance) {
+        // Try to find or create a physics aggregate
+        let physicsAggregate: PhysicsAggregate | null = null;
+
+        try {
+          if ((this.scene as any).physicsAggregateMap) {
+            physicsAggregate = (this.scene as any).physicsAggregateMap.get(
+              mesh
+            );
+          } else {
+            physicsAggregate = {
+              body: body,
+              transformNode: mesh,
+            } as unknown as PhysicsAggregate;
+          }
+        } catch (error) {
+          if (this.debug) {
+            console.error("Error finding physics aggregate:", error);
+          }
+        }
+
+        closestObject = {
+          distance,
+          mesh,
+          body,
+          aggregate: physicsAggregate,
+        };
+      }
+    }
+
+    // If we found a valid object to grab we grab it
+    if (closestObject && closestObject.aggregate) {
+      console.log(
+        `Grabbing ${
+          closestObject.mesh.name
+        } at distance ${closestObject.distance.toFixed(2)}`
+      );
+
+      this.grabbedObject = closestObject.aggregate;
+
+      // 1. Store original properties BEFORE changing them
+      const body = this.grabbedObject.body;
+      const massProps = body.getMassProperties();
+      // const material = body.getMaterial();
+      (this.grabbedObject as any)._initialPhysicsProperties = {
+        mass: massProps.mass,
+        // friction: material ? material.getFriction() : 0.5,
+        // restitution: material ? material.getRestitution() : 0.5,
+        linearDamping: body.getLinearDamping(),
+        angularDamping: body.getAngularDamping(),
+        // Store the original gravity setting
+        gravityFactor: body.getGravityFactor(),
+      };
+
+      // 2. Set the body to KINEMATIC
+      // body.setMotionType(PhysicsMotionType.DYNAMIC);
+
+      // Store original collision masks
+      const shape = this.grabbedObject.shape;
+      (shape as any)._originalMembershipMask = shape.filterMembershipMask;
+      (shape as any)._originalCollideMask = shape.filterCollideMask;
+
+      // Put it in the "HELD" collision group (6)
+      shape.filterMembershipMask = 6;
+      // A held item should ONLY collide with scenery, NOT the player
+      shape.filterCollideMask = 15 & ~1; // Collide with everything except player
+
+      // 3. Disable gravity on the object while holding it
+      body.setMotionType(PhysicsMotionType.ANIMATED);
+      body.setGravityFactor(0);
+      body.setLinearDamping(0.1);
+      body.setAngularDamping(0.1);
+
+      // 4. We DO NOT parent the mesh. The physics engine will now control its position.
+
+      // Visual feedback for debugging
+      if (this.debug) {
+        const highlightExtents =
+          closestObject.mesh.getBoundingInfo().boundingBox.extendSize;
+        const highlightMesh = MeshBuilder.CreateBox(
+          "grabbed_highlight",
+          {
+            width: highlightExtents.x * 2.1,
+            height: highlightExtents.y * 2.1,
+            depth: highlightExtents.z * 2.1,
+          },
+          this.scene
+        );
+        highlightMesh.position = closestObject.mesh.getAbsolutePosition();
+        highlightMesh.material = new StandardMaterial(
+          "grabHighlight",
+          this.scene
+        );
+        (highlightMesh.material as StandardMaterial).emissiveColor = new Color3(
+          0,
+          1,
+          0
+        );
+        highlightMesh.material.alpha = 0.3;
+        setTimeout(() => highlightMesh.dispose(), 1000);
+      }
+    } else if (this.debug) {
+      console.log("No valid grabbable object found in front of player");
+    }
+  }
+
+  /**
+   * Must be called every frame to update the position of the held object.
+   * The best place to call this is from a scene.onBeforeRenderObservable.
+   */
+  private updateGrabbedObject(): void {
+    if (!this.grabbedObject) {
+      return;
+    }
+
+    // Get the target position and rotation in world space from your attachment point
+    const targetPosition = this.frontGrabAttachmentPoint.getAbsolutePosition();
+    const targetRotation =
+      this.frontGrabAttachmentPoint.absoluteRotationQuaternion;
+
+    // if targetPosition is further than the grab distance, we stop updating the grabbed object
+    const distanceToTarget = Vector3.Distance(
+      this.grabbedObject.transformNode.getAbsolutePosition(),
+      targetPosition
+    );
+    if (distanceToTarget > this.grabDistance) {
+      this.releaseObject();
+      return;
+    }
+
+    // Tell the kinematic body to move to the target transform.
+    // The physics engine will calculate the velocity needed to get there
+    // in the next time step, ensuring smooth movement and collisions.
+    this.grabbedObject.body.setTargetTransform(targetPosition, targetRotation);
+  }
+
+  /**
+   * Sets up the hand bone attachment for grabbing objects in one hand
+   */
+  private setupHandAttachment(): void {
+    if (
+      !this.playerSkeletons ||
+      this.playerSkeletons.length === 0 ||
+      !this.playerHeroMeshes[0]
+    ) {
+      console.error(
+        "Cannot set up hand attachment: Missing skeleton or root mesh."
+      );
+      return;
+    }
+
+    const skeleton = this.playerSkeletons[0];
+    // there is a fallback in case not found but should set the appropriate bones names
+    const rightHandBoneName = "mixamorig:RightHand";
+    const leftHandBoneName = "mixamorig:LeftHand";
+
+    this.rightHandBone =
+      skeleton.bones.find((bone) => bone.name === rightHandBoneName) || null;
+    this.leftHandBone =
+      skeleton.bones.find((bone) => bone.name === leftHandBoneName) || null;
+
+    // Fallback that search for right then hand in bones
+    if (!this.rightHandBone) {
+      // Find all bones whose name includes "right"
+      const rightBones = skeleton.bones.filter((bone) =>
+        bone.name.toLowerCase().includes("right")
+      );
+      // From those find the first that also contains "hand"
+      const rightHandBones = rightBones.filter((bone) =>
+        bone.name.toLowerCase().includes("hand")
+      );
+      if (rightHandBones.length > 0) {
+        this.rightHandBone = rightHandBones[0];
+      }
+    }
+
+    // Fallback that search for left then hand in bones
+    if (!this.leftHandBone) {
+      // Find all bones whose name includes "left"
+      const leftBones = skeleton.bones.filter((bone) =>
+        bone.name.toLowerCase().includes("left")
+      );
+      // From those find the first that also contains "hand"
+      const leftHandBones = leftBones.filter((bone) =>
+        bone.name.toLowerCase().includes("hand")
+      );
+      if (leftHandBones.length > 0) {
+        this.leftHandBone = leftHandBones[0];
+      }
+    }
+
+    if (!this.rightHandBone) {
+      console.error(
+        `Right hand bone "${rightHandBoneName}" not found in skeleton.`
+      );
+      return;
+    }
+    if (!this.leftHandBone) {
+      console.error(
+        `Left hand bone "${leftHandBoneName}" not found in skeleton.`
+      );
+      return;
+    }
+
+    if (this.debug) {
+      const rightHandMarker = MeshBuilder.CreateSphere(
+        "rightHandMarker",
+        { diameter: 0.8 },
+        this.scene
+      );
+      rightHandMarker.material = new StandardMaterial(
+        "rightHandMarkerMat",
+        this.scene
+      );
+      (rightHandMarker.material as StandardMaterial).emissiveColor = new Color3(
+        1,
+        0,
+        0
+      );
+      rightHandMarker.scaling = new Vector3(100, 100, 100);
+      rightHandMarker.parent = this.rightHandBone.getTransformNode();
+
+      const leftHandMarker = MeshBuilder.CreateSphere(
+        "leftHandMarker",
+        { diameter: 0.8 },
+        this.scene
+      );
+      leftHandMarker.material = new StandardMaterial(
+        "leftHandMarkerMat",
+        this.scene
+      );
+      (leftHandMarker.material as StandardMaterial).emissiveColor = new Color3(
+        0,
+        0,
+        1
+      );
+      leftHandMarker.scaling = new Vector3(100, 100, 100);
+      leftHandMarker.parent = this.leftHandBone.getTransformNode();
+    }
+  }
+
+  private testAttachObjectToHand(): void {
+    console.log("Testing object attachment to hand...");
+    // --- STEP 1: Get the target destination FIRST ---
+    if (!this.rightHandBone || !this.rightHandBone.getTransformNode()) {
+      console.error("Cannot test attach: Right hand bone not ready.");
+      return;
+    }
+    const handTransformNode = this.rightHandBone.getTransformNode()!;
+    const targetPosition = handTransformNode.getAbsolutePosition();
+    const targetRotation = handTransformNode.absoluteRotationQuaternion;
+
+    // --- STEP 2: Create the test object AT the target destination ---
+    const testObject = MeshBuilder.CreateBox(
+      "testObject",
+      { size: 2 },
+      this.scene
+    );
+    testObject.position = targetPosition; // Pre-position the mesh
+    if (targetRotation) {
+      testObject.rotationQuaternion = targetRotation.clone(); // Pre-rotate the mesh
+    }
+    // TO DO : to work with physics
+    const aggregate = new PhysicsAggregate(
+      testObject,
+      PhysicsShapeType.BOX,
+      {
+        mass: 1,
+        friction: 0.5,
+        restitution: 0.5,
+      },
+      this.scene
+    );
+    aggregate.body.setMotionType(PhysicsMotionType.DYNAMIC);
+    // const aggregate = null;
+
+    // Attach the object to the right hand
+    this.attachObjectToHand(testObject, aggregate, "right");
+  }
+
+  private attachObjectToHand(
+    object: Mesh,
+    aggregate: PhysicsAggregate | null = null,
+    hand: "right" | "left" = "right"
+  ): void {
+    let handBone: Bone | null = null;
+    if (hand === "right") {
+      handBone = this.rightHandBone;
+    }
+    if (hand === "left") {
+      handBone = this.leftHandBone;
+    }
+    if (!handBone) {
+      console.error(`Cannot attach object: ${hand} hand bone not found.`);
+      return;
+    }
+
+    // Attach the object to the hand bone
+    object.scaling = new Vector3(1, 1, 1); // Reset scaling
+
+    if (hand === "right") {
+      this.rightHandObj = object;
+      this.rightHandObjAggregate = aggregate;
+    } else {
+      this.leftHandObj = object;
+      this.leftHandObjAggregate = aggregate;
+    }
+
+    if (aggregate) {
+      // Disable gravity while being controlled
+      // aggregate.body.setGravityFactor(0);
+      aggregate.body.setLinearDamping(0.1);
+      aggregate.body.setAngularDamping(0.1);
+      // object.scaling = new Vector3(10, 10, 10);
+      // object.parent = handBone.getTransformNode();
+      aggregate.body.setMotionType(PhysicsMotionType.DYNAMIC);
+
+      // const shape = aggregate.shape; // <-- GET THE SHAPE
+
+      // // Store original filter masks to restore on release
+      // (shape as any)._originalMembershipMask = shape.filterMembershipMask;
+      // (shape as any)._originalCollideMask = shape.filterCollideMask;
+
+      // // Put it in the "HELD" collision group
+      // shape.filterMembershipMask = 6;
+
+      // // A held item should ONLY collide with scenery (15), NOT the player (1)
+      // shape.filterCollideMask = 15 & ~1;
+    } else {
+      object.parent = handBone.getTransformNode();
+      // object.scaling = new Vector3(100, 100, 100);
+    }
+
+    // object.position = Vector3.Zero(); // Reset position relative to the hand
+    // object.rotationQuaternion = Quaternion.Identity(); // Reset rotation relative to the hand
+    if (this.debug) {
+      console.log(`Attached ${object.name} to ${hand} hand.`);
+    }
+  }
+
+  private updateHandObjects(): void {
+    // TO DO !!!!!!!!!!!!!!
+    if (!this.rightHandObj || !this.rightHandBone) {
+      console.warn("Right hand object or bone not set up.");
+      return;
+    }
+    // update the aggregate position to match the hand bone
+    const rightHandTransformNode = this.rightHandBone?.getTransformNode();
+    if (!rightHandTransformNode) {
+      console.warn("Right hand transform node not defined");
+      return;
+    }
+    const rightHandPos = rightHandTransformNode.getAbsolutePosition();
+    if (!rightHandPos) {
+      console.warn("right hand position not defined");
+      return;
+    }
+
+    // IMPORTANT: Use only the transform node's position, not the bone's position
+    const targetPosition = rightHandTransformNode.getAbsolutePosition();
+    const targetRotation =
+      rightHandTransformNode.absoluteRotationQuaternion ||
+      Quaternion.Identity();
+
+    console.log(`Player position: ${this.player.position}`);
+    console.log(
+      `Updated hand position (from TransformNode): ${targetPosition}`
+    );
+
+    // Tell the kinematic body to move to the target transform.
+    // The physics engine will calculate the velocity needed to get there
+    // in the next time step, ensuring smooth movement and collisions.
+    if (this.rightHandObjAggregate) {
+      this.rightHandObjAggregate.body.setTargetTransform(
+        targetPosition,
+        targetRotation
+      );
+      console.log(`Updated right hand object position to ${targetPosition}`);
+    }
+  }
+
+  /**
+   * Releases the currently held object
+   */
+  private releaseObject(): void {
+    if (!this.grabbedObject) {
+      return;
+    }
+
+    const releasedMesh = this.grabbedObject.transformNode as Mesh;
+    const initialProps = (this.grabbedObject as any)._initialPhysicsProperties;
+    if (this.debug)
+      console.log(`Releasing ${releasedMesh.name} from Kinematic to Dynamic.`);
+
+    // 1. Restore original physics properties
+    if (initialProps) {
+      // Restore gravity so it falls again
+      this.grabbedObject.body.setGravityFactor(initialProps.gravityFactor ?? 1);
+      this.grabbedObject.body.setLinearDamping(
+        0.1
+        // initialProps.linearDamping || 0.1
+      );
+      this.grabbedObject.body.setAngularDamping(
+        0.1
+        // initialProps.angularDamping || 0.1
+      );
+    }
+
+    // IMPORTANT: Restore original collision masks
+    const shape = this.grabbedObject.shape;
+    try {
+      if ((shape as any)._originalMembershipMask !== undefined) {
+        shape.filterMembershipMask = (shape as any)._originalMembershipMask;
+      }
+      if ((shape as any)._originalCollideMask !== undefined) {
+        shape.filterCollideMask = (shape as any)._originalCollideMask;
+      }
+    } catch (error) {
+      console.error("Error restoring collision masks:", error);
+    }
+
+    // just in case but useless since we did not changed it
+    this.grabbedObject.body.setMotionType(PhysicsMotionType.DYNAMIC);
+
+    // 3. Apply the player's velocity for a natural "throw"
+    // The body is already at the correct position, so we just need to set its new velocity.
+    const playerBody = this.player.physicsBody;
+    if (playerBody) {
+      const playerLinearVelocity = playerBody.getLinearVelocity();
+      // We might want to add some extra force in the direction the player is looking
+      // For now, just inheriting the player's velocity is a great start.
+      this.grabbedObject.body.setLinearVelocity(playerLinearVelocity);
+    } else {
+      // If no player body, ensure velocity is zero.
+      this.grabbedObject.body.setLinearVelocity(Vector3.Zero());
+    }
+
+    // 4. Clean up
+    this.grabbedObject = null;
+  }
+
+  /**
+   * Throws the currently held object.
+   */
+  // private throwObject(): void {
+  //   if (!this.grabbedObject) {
+  //     return;
+  //   }
+
+  //   const thrownMesh = this.grabbedObject.transformNode as Mesh;
+  //   if (this.debug) console.log(`Throwing ${thrownMesh.name}`);
+
+  //   // Unparent the mesh from the attachment point
+  //   thrownMesh.setParent(null);
+
+  //   // Get the player's current velocity as a basis for the throw
+  //   let playerVelocity = Vector3.Zero();
+  //   if (this.player.physicsBody) {
+  //     playerVelocity =
+  //       this.player.physicsBody.getLinearVelocity() || Vector3.Zero();
+  //   }
+
+  //   // Restore the object to be dynamic
+  //   this.grabbedObject.body.setMotionType(PhysicsMotionType.DYNAMIC);
+
+  //   // Apply a forward impulse to throw it in the direction the player is facing
+  //   // Add some of the player's velocity to make throws feel more natural when moving
+  //   const throwDirection = this.getBoxDirection().normalize();
+  //   const throwVelocity = throwDirection
+  //     .scale(this.throwStrength)
+  //     .add(playerVelocity);
+
+  //   this.grabbedObject.body.applyImpulse(
+  //     throwVelocity,
+  //     thrownMesh.getAbsolutePosition()
+  //   );
+
+  //   // Clear the reference to the grabbed object
+  //   this.grabbedObject = null;
+  // }
+
+  // --- END: ADDED GRAB AND THROW METHODS ---
 
   public setPlayerToSleep() {
-    // console.log("SETTING TO SLEEP");
-    // Animation Laying
-    // this.onAnimWeight(AnimationKey.Laying);
-    this.isInSleep = true;
+    this.playerState.isInSleep = true;
     this.player.position.z = 2;
     this.player.position.x = -6;
     this.player.position.y = 2;
-    // rotate
-    // this.player.rotate(new Vector3(0, 1, 0), Math.PI);
   }
 
   public wakeUpPlayer() {
-    // set physics before waking up
+    // set the player physics
     this.setPlayerPhysics();
-    // console.log("In waking up ");
-    this.isInSleep = false;
+    this.playerState.isInSleep = false;
     this.player.position.y = 3;
-    this.isWakingUp = true;
-
-    // Reset jump stamina and jump limit
-    this.jumpStamina.current = this.jumpStamina.max;
-    this.jumpStamina.canJump = true;
-    this.jumpStamina.regenTimer = 0;
-    this.inAirState.limit = this.inAirState.defaultLimit; // Reset jump limit
-
-    // this.player.rotate(new Vector3(0, 1, 0), Math.PI);
-    // Play the StandingUp animation
-    // this.onAnimWeight(AnimationKey.StandingUp);
-
-    //   // // Start the animation
-    //   // standingUpAnim.start(true); // true = loop, false = play once
-    //   this.onAnimWeight(AnimationKey.Idle);
-    // } else {
-    //   console.warn("StandingUp animation not found.");
-    // }
+    this.playerState.isWakingUp = true;
   }
 
-  checkMovementKeys() {
-    // Check movement direction based on key inputs
+  updatePlayerDirection() {
     if (this.inputMap[this.playerKeys.up])
       this.playerDirection = PlayerDirection.Forward;
     if (this.inputMap[this.playerKeys.down])
@@ -1321,7 +1776,6 @@ class PlayerController {
     if (this.inputMap[this.playerKeys.left])
       this.playerDirection = PlayerDirection.Left;
 
-    // Handle diagonal movement
     if (
       this.inputMap[this.playerKeys.up] &&
       this.inputMap[this.playerKeys.right]
@@ -1343,40 +1797,6 @@ class PlayerController {
     )
       this.playerDirection = PlayerDirection.LeftBackward;
   }
-}
-
-export enum PlayerState {
-  Idle,
-  Jump,
-  Running,
-  RunJump,
-  Falling,
-  Climbing,
-}
-
-export enum PlayerDirection {
-  Forward,
-  RightForward,
-  Right,
-  RightBackward,
-  Backward,
-  LeftBackward,
-  Left,
-  LeftForward,
-}
-
-export enum AnimationKey {
-  Ascending,
-  Falling,
-  Idle,
-  Jumping,
-  Laying,
-  Running,
-  StandingUp,
-}
-
-export interface InputMap {
-  [key: string]: boolean;
 }
 
 export default PlayerController;
